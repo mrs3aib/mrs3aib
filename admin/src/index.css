@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #f7f5f2;
+  --color-card: #ffffff;
+  --color-primary: #1a1a1a;
+  --color-secondary: #6b6b6b;
+  --color-accent: #c8a87d;
+  --color-line: rgba(0, 0, 0, 0.08);
+  --color-danger: #b3462c;
+  --color-success: #3f7a53;
+
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", "Tahoma", "Arial", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+:lang(ar) {
+  --font-display: "Inter", "Tahoma", "Arial", ui-sans-serif, system-ui, sans-serif;
+}
+
+.tracking-nav {
+  letter-spacing: 0.08em;
+}
+.tracking-title {
+  letter-spacing: -0.02em;
+}
+
+/* Emblem top-to-bottom reveal loop, matching the public website loader */
+@keyframes logo-emblem-wipe {
+  0% {
+    height: 0;
+  }
+  55% {
+    height: 100%;
+  }
+  100% {
+    height: 100%;
+  }
+}
+
+::selection {
+  background-color: var(--color-accent);
+  color: #1a1a1a;
+}
+
+/* Thin scrollbar, same treatment as the public site */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-base);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 999px;
+  border: 2px solid var(--color-base);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [class*="animate-[logo-emblem-wipe"] {
+    animation: none !important;
+    height: 100% !important;
+  }
+}

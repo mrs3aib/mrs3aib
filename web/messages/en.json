@@ -1,0 +1,481 @@
+{
+  "meta": {
+    "title": "Yahya Al-Saib — Fine Art Photography",
+    "description": "A luxury photography studio capturing emotion, architecture, people and unforgettable moments."
+  },
+  "nav": {
+    "home": "Home",
+    "portfolio": "Gallary",
+    "photoDelivery": "Receive Photos",
+    "projects": "Projects",
+    "services": "Services",
+    "about": "About Us",
+    "photographyVideoMenu": "Photography and Video Menu",
+    "extraServices": "Extra Services",
+    "graphicDesign": "Graphic Design",
+    "motionGraphics": "Motion Graphics",
+    "videoEditing": "Video Editing",
+    "voiceover": "Voiceover",
+    "presentation": "Presentation",
+    "blog": "Blog",
+    "contact": "Contact",
+    "book": "Contact Us",
+    "auth": "Sign up / Login",
+    "signOut": "Sign out",
+    "menu": "Menu",
+    "close": "Close",
+    "language": "Switch language"
+  },
+  "auth": {
+    "eyebrow": "Private Gallery Access",
+    "loginTitle": "Welcome back",
+    "signupTitle": "Create your gallery account",
+    "loginText": "Sign in with your phone number to keep your saved galleries, favorites, and delivery access close at hand.",
+    "signupText": "Create a private account for photo delivery, favorites, and future session updates.",
+    "loginTab": "Login",
+    "signupTab": "Sign up",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "phone": "Phone number",
+    "phonePlaceholder": "+966 55 123 4567",
+    "password": "Password",
+    "passwordPlaceholder": "At least 6 characters",
+    "loginSubmit": "Enter gallery",
+    "signupSubmit": "Create account",
+    "privacy": "This demo keeps your profile in this browser until real gallery auth is connected.",
+    "close": "Close auth modal",
+    "guestName": "Guest"
+  },
+  "hero": {
+    "kicker": "Fine Art Photography Studio",
+    "studio": "Yahya Al-Saib",
+    "wordmark": "Photography & Films",
+    "title": "Turning moments into timeless details",
+    "cta": "Explore My Work",
+    "ctaSecondary": "Receive Your Photos",
+    "scroll": "Scroll to explore",
+    "location": "Est. 2014 — Working worldwide"
+  },
+  "latestWeddings": {
+    "label": "Weddings",
+    "title": "Latest weddings",
+    "subtitle": "The most recent weddings we've captured, fresh from the last few shoots.",
+    "photos": "{count} photos",
+    "viewAll": "View all weddings"
+  },
+  "categories": {
+    "weddings": "Weddings",
+    "companies": "Companies",
+    "restaurants": "Restaurants & Cafés",
+    "events": "Events",
+    "products": "Products",
+    "realEstate": "Real Estate",
+    "drone": "Drone",
+    "cinematicVideo": "Cinematic Video"
+  },
+  "albums": {
+    "backToGalleries": "Back to galleries",
+    "favorite": "Favorite",
+    "photos": "photos",
+    "video": "video",
+    "location": "Location",
+    "downloadAll": "Download full folder",
+    "preparing": "Preparing…",
+    "downloadFailed": "Download failed",
+    "share": "Share album",
+    "qr": "QR",
+    "searchPlaceholder": "Search in album",
+    "sortNewest": "Newest",
+    "view": "View",
+    "select": "Select",
+    "cancelSelect": "Cancel",
+    "selectAll": "Select all",
+    "clearSelection": "Clear",
+    "selectedCount": "{count} selected",
+    "downloadSelected": "Download selected",
+    "selectPrompt": "Select photos to download",
+    "items": {
+      "weddings-1": {
+        "title": "Mohamed & Noura",
+        "type": "Wedding"
+      },
+      "weddings-2": {
+        "title": "Yasmine & Karim",
+        "type": "Wedding"
+      },
+      "weddings-3": {
+        "title": "The Amrani Estate",
+        "type": "Wedding Showcase"
+      },
+      "companies-1": {
+        "title": "Kayan Headquarters",
+        "type": "Corporate"
+      },
+      "companies-2": {
+        "title": "Nomad & Co Offsite",
+        "type": "Brand Story"
+      },
+      "companies-3": {
+        "title": "Atlas Air Campaign",
+        "type": "Corporate"
+      },
+      "restaurants-1": {
+        "title": "Maison Noor Tasting Menu",
+        "type": "Restaurant"
+      },
+      "restaurants-2": {
+        "title": "Le Salon Cafe Opening",
+        "type": "Restaurant"
+      },
+      "restaurants-3": {
+        "title": "Nomad & Co Kitchen",
+        "type": "Restaurant"
+      },
+      "events-1": {
+        "title": "Layla & Omar",
+        "type": "Wedding"
+      },
+      "events-2": {
+        "title": "Kayan Product Launch",
+        "type": "Corporate Event"
+      },
+      "events-3": {
+        "title": "Aura Hotels Gala",
+        "type": "Gala"
+      },
+      "products-1": {
+        "title": "Maison Noor Collection",
+        "type": "Product"
+      },
+      "products-2": {
+        "title": "KAYAN Lookbook",
+        "type": "Product"
+      },
+      "products-3": {
+        "title": "Le Salon Objects",
+        "type": "Product"
+      },
+      "realEstate-1": {
+        "title": "Palm Estates Penthouse",
+        "type": "Real Estate"
+      },
+      "realEstate-2": {
+        "title": "Atlas Residences",
+        "type": "Real Estate"
+      },
+      "realEstate-3": {
+        "title": "Le Salon Villas",
+        "type": "Real Estate"
+      },
+      "drone-1": {
+        "title": "Atlas Coastline",
+        "type": "Aerial"
+      },
+      "drone-2": {
+        "title": "Palm Estates Overview",
+        "type": "Aerial"
+      },
+      "drone-3": {
+        "title": "Al-Khair Grounds",
+        "type": "Aerial"
+      },
+      "cinematicVideo-1": {
+        "title": "Mohamed & Noura — The Film",
+        "type": "Wedding Film"
+      },
+      "cinematicVideo-2": {
+        "title": "Midnight in Marrakech",
+        "type": "Fashion Film"
+      },
+      "cinematicVideo-3": {
+        "title": "The Silent Coast",
+        "type": "Short Film"
+      }
+    },
+    "filterAll": "All",
+    "filterPhotos": "Photos",
+    "filterVideos": "Videos",
+    "viewGrid": "Grid view",
+    "viewRows": "List view",
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next",
+    "qrTitle": "Scan to open this album",
+    "qrHint": "Point your phone camera at the code, or copy the link below.",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "downloadQr": "Download QR",
+    "empty": "Nothing to show here yet.",
+    "playVideo": "Play video"
+  },
+  "categoryPages": {
+    "backToHome": "Back to home",
+    "gallery": "Gallery",
+    "cta": "Book this service",
+    "otherCategories": "Explore other categories",
+    "items": {
+      "weddings": {
+        "kicker": "Weddings",
+        "title": "The day, kept exactly as it felt.",
+        "subtitle": "Ceremonies and celebrations, photographed to show exactly what the day felt like to everyone in the room.",
+        "description": "From the first look to the last dance, we document weddings with a storyteller's eye and a guest's warmth — wide establishing frames, the small details you spent months choosing, and the unguarded moments between them that you will want back years from now."
+      },
+      "companies": {
+        "kicker": "Companies",
+        "title": "Brand imagery with substance.",
+        "subtitle": "Corporate portraits, office culture and campaign work for teams who take their image seriously.",
+        "description": "We spend time inside your business before we shoot it — understanding the culture, the people and the story you want your brand to tell, then translating that into imagery built for websites, decks and campaigns alike."
+      },
+      "restaurants": {
+        "kicker": "Restaurants & Cafés",
+        "title": "Food and atmosphere, in equal measure.",
+        "subtitle": "Menus, interiors and the quiet choreography of service — shot to make people hungry and curious.",
+        "description": "Plates are only half the story. We capture the steam off a fresh dish, the warmth of a dining room at golden hour, and the hands behind the counter — a complete visual language for menus, socials and press."
+      },
+      "events": {
+        "kicker": "Events",
+        "title": "Moments as they actually happened.",
+        "subtitle": "Conferences, launches and celebrations, documented discreetly from first arrival to last toast.",
+        "description": "We move quietly through the room, anticipating the moments that matter — a handshake, a toast, a room mid-laugh — so the story of your event survives long after the night is over."
+      },
+      "products": {
+        "kicker": "Products",
+        "title": "Every detail, considered.",
+        "subtitle": "Studio and lifestyle product photography built for e-commerce, catalogues and campaigns.",
+        "description": "Clean studio setups or styled lifestyle scenes — we light every product to show texture, form and craftsmanship, delivering catalogue-ready imagery that holds up at any size."
+      },
+      "realEstate": {
+        "kicker": "Real Estate",
+        "title": "Properties that photograph like homes.",
+        "subtitle": "Interiors, exteriors and aerial views composed to help buyers picture themselves inside.",
+        "description": "We photograph properties the way a buyer walks through them — light-filled, spacious and true to scale — combining interior detail with wide architectural frames and aerial context."
+      },
+      "drone": {
+        "kicker": "Drone",
+        "title": "A perspective only altitude can give.",
+        "subtitle": "Aerial photography and video for landscapes, real estate and large-scale events.",
+        "description": "Licensed aerial coverage that reveals scale and geography impossible from the ground — coastlines, estates, construction progress and events, captured in smooth, cinematic passes."
+      },
+      "cinematicVideo": {
+        "kicker": "Cinematic Video",
+        "title": "Motion with the same restraint as our stills.",
+        "subtitle": "Short films, brand documentaries and cinematic reels shot on a filmic, patient palette.",
+        "description": "The same eye for light and composition that defines our photography, extended into motion — deliberate pacing, natural sound and colour work that favours mood over spectacle."
+      }
+    },
+    "empty": "Galleries from this category are coming soon."
+  },
+  "about": {
+    "label": "About me",
+    "title": "We don't just take photographs.",
+    "body": "A professional photographer based in the Eastern Province, with a deep passion for documenting beautiful moments and creating refined visual content that touches emotions and preserves meaningful memories.",
+    "body2": "For over a decade, Yahya Al-Saib has photographed weddings, campaigns and spaces across three continents, always with the same conviction: photography is not documentation, it is memory made permanent.",
+    "cta": "Learn more",
+    "testimonialTitle": "Client opinions",
+    "statYears": "Years of craft",
+    "statProjects": "Projects delivered",
+    "statCountries": "Countries visited"
+  },
+  "projects": {
+    "label": "Featured Projects",
+    "title": "Selected works",
+    "subtitle": "Three stories from the archive — each one a different discipline, the same obsession with light.",
+    "view": "View Project",
+    "items": {
+      "atlas": {
+        "category": "Editorial",
+        "title": "Whispers of the Atlas",
+        "description": "A wedding story told across the high desert — wind, silk and golden light at the edge of the mountains."
+      },
+      "concrete": {
+        "category": "Architecture",
+        "title": "Concrete Poetry",
+        "description": "Brutalist geometry softened by morning fog, human scale and the patience of long exposures."
+      },
+      "marrakech": {
+        "category": "Fashion",
+        "title": "Midnight in Marrakech",
+        "description": "A nocturnal fashion series wandering the lantern-lit medina, shot entirely on available light."
+      }
+    }
+  },
+  "services": {
+    "label": "Services",
+    "title": "What we photograph",
+    "subtitle": "Seven disciplines, one standard. Every commission is treated as an exhibition piece.",
+    "items": {
+      "wedding": {
+        "title": "Wedding Photography",
+        "text": "Quiet, cinematic coverage of the day you will retell forever."
+      },
+      "portrait": {
+        "title": "Portrait Photography",
+        "text": "Studio and environmental portraits with editorial restraint."
+      },
+      "fashion": {
+        "title": "Fashion",
+        "text": "Campaigns and lookbooks with a filmic, timeless palette."
+      },
+      "commercial": {
+        "title": "Commercial",
+        "text": "Brand imagery that earns its place on the page."
+      },
+      "architecture": {
+        "title": "Architecture",
+        "text": "Spaces photographed the way their architects imagined them."
+      },
+      "travel": {
+        "title": "Travel",
+        "text": "Landscapes and cities rendered as memory, not postcard."
+      },
+      "events": {
+        "title": "Events",
+        "text": "Discreet documentation of evenings worth keeping."
+      }
+    }
+  },
+  "gallery": {
+    "label": "Portfolio",
+    "title": "The gallery",
+    "subtitle": "A rotating selection from recent commissions and personal work.",
+    "view": "View Project",
+    "more": "View more",
+    "less": "Show less",
+    "close": "Close",
+    "prev": "Previous image",
+    "next": "Next image",
+    "counter": "{current} of {total}"
+  },
+  "story": {
+    "label": "Featured Story",
+    "title": "The Silent Coast",
+    "intro": "One commission, three mornings, no words.",
+    "chapters": {
+      "one": {
+        "number": "Chapter 01",
+        "title": "Before the light",
+        "text": "We arrived in darkness. The sea was a sound, not a sight, and the cliffs held their breath."
+      },
+      "two": {
+        "number": "Chapter 02",
+        "title": "The first frame",
+        "text": "At 6:42 the fog lifted for ninety seconds. Everything the project needed happened inside them."
+      },
+      "three": {
+        "number": "Chapter 03",
+        "title": "What remains",
+        "text": "Twelve photographs survived the edit. The client hung one. We kept the silence."
+      }
+    }
+  },
+  "process": {
+    "label": "Working Process",
+    "title": "How we work",
+    "steps": {
+      "discovery": {
+        "number": "01",
+        "title": "Discovery",
+        "text": "A conversation about what the images must do, and for whom."
+      },
+      "planning": {
+        "number": "02",
+        "title": "Planning",
+        "text": "Locations, light studies, moodboards and a shot list we intend to break."
+      },
+      "photoshoot": {
+        "number": "03",
+        "title": "Photoshoot",
+        "text": "Calm sets, long patience, decisive frames."
+      },
+      "editing": {
+        "number": "04",
+        "title": "Editing",
+        "text": "A ruthless edit followed by colour work done by hand."
+      },
+      "delivery": {
+        "number": "05",
+        "title": "Delivery",
+        "text": "A private gallery, print masters and archival files, delivered on time."
+      }
+    }
+  },
+  "testimonials": {
+    "label": "Testimonials",
+    "title": "Kind words",
+    "items": {
+      "t1": {
+        "quote": "They photographed our wedding like it was a film we were lucky enough to star in. We have never seen ourselves this way.",
+        "name": "Layla & Omar",
+        "role": "Wedding, Amalfi Coast"
+      },
+      "t2": {
+        "quote": "The campaign images outperformed every asset we have ever produced. Restraint, it turns out, sells.",
+        "name": "Nadia Rahal",
+        "role": "Creative Director, Maison Noor"
+      },
+      "t3": {
+        "quote": "Our building had been photographed a hundred times. This was the first time it looked the way it feels.",
+        "name": "Karim El-Sayed",
+        "role": "Principal Architect, KAYAN"
+      }
+    }
+  },
+  "clients": {
+    "label": "Trusted by"
+  },
+  "instagram": {
+    "label": "Instagram",
+    "title": "@yahyaalsaib",
+    "subtitle": "Daily frames, works in progress and light tests.",
+    "follow": "Follow along"
+  },
+  "contact": {
+    "label": "Contact",
+    "title": "Let's create something unforgettable.",
+    "subtitle": "Tell us about the story you want to keep. We respond within two working days.",
+    "emailLabel": "Email",
+    "email": "hello@yahyaalsaib.com",
+    "instagramLabel": "Instagram",
+    "instagram": "@yahyaalsaib",
+    "whatsappLabel": "WhatsApp",
+    "whatsapp": "+20 100 000 0000",
+    "book": "Contact Us"
+  },
+  "footer": {
+    "tagline": "Photography is memory made permanent.",
+    "navigation": "Navigation",
+    "social": "Social",
+    "rights": "All rights reserved.",
+    "newsletterTitle": "Subscribe to our newsletter",
+    "newsletterText": "Receive our latest work and private offers.",
+    "emailPlaceholder": "Enter your email",
+    "subscribe": "Subscribe",
+    "quickLinks": "Quick links",
+    "contactTitle": "Contact us",
+    "location": "Eastern Province - Personal Photography",
+    "phone": "+966 55 123 4567",
+    "email": "info@mrs3aib.com",
+    "followTitle": "Follow me on",
+    "copyright": "All rights reserved ? {year} Yahya Al-Saib Photography"
+  },
+  "mobileBar": {
+    "categories": "Categories",
+    "weddings": "Weddings",
+    "extraServices": "Extra Services",
+    "accounts": "Our Accounts",
+    "bookNow": "Book Now"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "This page may have been moved, or the gallery is no longer published.",
+    "home": "Back to home"
+  },
+  "albumPassword": {
+    "intro": "This album is protected. Enter the password to view it.",
+    "label": "Password",
+    "submit": "View album",
+    "checking": "Checking…",
+    "wrong": "That password is not correct.",
+    "error": "Something went wrong. Please try again."
+  }
+}

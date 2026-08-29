@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none">
+  <circle cx="14" cy="20" r="9" stroke="#ffffff" stroke-width="1.4" />
+  <path d="M14 13v14M9 15.5h10M9 24.5h10" stroke="#ffffff" stroke-width="1.2" />
+  <text x="34" y="26" font-family="Georgia, 'Times New Roman', serif" font-size="17" letter-spacing="3" fill="#ffffff">AURA HOTELS</text>
+</svg>

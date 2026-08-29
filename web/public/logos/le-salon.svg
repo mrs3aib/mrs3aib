@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none">
+  <circle cx="14" cy="20" r="8" stroke="#ffffff" stroke-width="1.4" />
+  <path d="M14 15v10M10 20h8" stroke="#ffffff" stroke-width="1.2" />
+  <text x="32" y="26" font-family="Georgia, 'Times New Roman', serif" font-size="17" letter-spacing="3" fill="#ffffff">LE SALON</text>
+</svg>

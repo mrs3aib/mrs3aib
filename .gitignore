@@ -1,0 +1,23 @@
+node_modules
+.next
+out
+build
+dist
+.DS_Store
+*.pem
+npm-debug.log*
+.env
+.env.*
+!.env.example
+next-env.d.ts
+*.tsbuildinfo
+*.log
+
+# Video masters live in R2, not in git — GitHub rejects files over 100 MB and
+# they bloat every clone. Upload them through the CMS instead.
+*.mp4
+*.mov
+*.webm
+
+# Local working notes
+CMS_WIRING_NOTES.md

@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Pooled connection (Supabase pgbouncer, port 6543) — used at runtime.
+  url = env("DATABASE_URL")
+  // Direct connection (port 5432) — required for migrations, which cannot
+  // run through a transaction pooler.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Where a session is in its lifecycle. Only `active` is ever shown publicly,
+/// and then only when `isPublic` is also set — the two are separate switches.
+/// How a published session is reached from the public site.
+enum SessionVisibility {
+  /// Listed on category pages and openable by anyone.
+  public
+  /// Hidden from every listing, but opens for anyone holding the direct link.
+  private
+  /// Listed like a public album, but its contents need the gallery password.
+  protected
+}
+
+enum SessionStatus {
+  /// Work in progress. Hidden from the public site whatever `isPublic` says.
+  draft
+  /// Finished. Appears on the public site once `isPublic` is set.
+  active
+  /// Retired but retained. Never public; restored by setting status back.
+  archived
+}
+
+/// Public gallery category a session is shown under. Mirrors `categories`
+/// in web/lib/data.ts — keep the two lists in sync.
+enum SessionCategory {
+  weddings
+  companies
+  restaurants
+  events
+  products
+  realEstate
+  drone
+  cinematicVideo
+}
+
+enum MediaType {
+  image
+  video
+}
+
+/// Where a media item's content lives.
+///
+/// `upload` items are files in our own bucket and carry a `storageKey`.
+/// `youtube` items are links the admin pasted — nothing is stored, so they can
+/// be embedded but never downloaded or packed into a ZIP.
+enum MediaSource {
+  upload
+  youtube
+}
+
+enum MediaProcessingStatus {
+  processing
+  ready
+  failed
+}
+
+enum DownloadType {
+  single
+  multiple
+  zip
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@map("admins")
+}
+
+model PhotoSession {
+  id          String          @id @default(cuid())
+  title       String
+  slug        String          @unique
+  category    SessionCategory
+  coverImage  String?
+  eventDate   DateTime
+  location    String
+  description String?
+  status      SessionStatus   @default(draft)
+  /// Public gallery listings show only sessions the admin has published.
+  ///
+  /// Kept as the master publish switch: nothing unpublished is reachable at
+  /// all. `visibility` then decides how a *published* session is reached.
+  isPublic    Boolean         @default(false)
+  /// Listing and password behaviour for a published session. See the enum.
+  visibility  SessionVisibility @default(public)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  clients         Client[]
+  media           Media[]
+  downloads       DownloadHistory[]
+  gallerySettings GallerySettings?
+  zipArchives     ZipArchive[]
+
+  @@index([category, isPublic, visibility])
+  @@map("sessions")
+}
+
+model Client {
+  id   String @id @default(cuid())
+  name String
+  /// Doubles as the login identifier — the client equivalent of an admin's
+  /// email address, hence the unique constraint.
+  phone String @unique
+  /// bcrypt hash of the client's login password.
+  ///
+  /// Nullable only so the column could be added to a table of existing rows.
+  /// A client with no hash cannot sign in; the admin sets one from the client
+  /// list, which is also how a forgotten password is recovered.
+  passwordHash String?
+  /// Null for a self-registered account that the admin has not yet attached to
+  /// a session. Such an account can sign in but has no gallery to see, so the
+  /// gallery routes report "no gallery yet" rather than failing.
+  sessionId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  session       PhotoSession?     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+  downloads     DownloadHistory[]
+
+  @@index([sessionId])
+  @@map("clients")
+}
+
+model Media {
+  id               String                @id @default(cuid())
+  sessionId        String
+  type             MediaType
+  originalName     String
+  source           MediaSource           @default(upload)
+  /// Canonical watch URL for a `youtube` item. Null for uploads.
+  externalUrl      String?
+  /// YouTube video id, parsed once on save so the site never re-parses a URL
+  /// to build an embed or thumbnail. Null for uploads.
+  externalId       String?
+  /// Null for `youtube` items, which have no file of ours behind them. The
+  /// download and ZIP paths treat a missing key as "not downloadable".
+  storageKey       String?
+  thumbnailKey     String?
+  /// Null for `youtube` items — there is no file, so no MIME type or byte size.
+  mimeType         String?
+  size             Int?
+  width            Int?
+  height           Int?
+  duration         Float?
+  processingStatus MediaProcessingStatus @default(processing)
+  createdAt        DateTime              @default(now())
+
+  session PhotoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("media")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  adminId   String?
+  clientId  String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  admin  Admin?  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([clientId])
+  @@map("refresh_tokens")
+}
+
+model DownloadHistory {
+  id           String       @id @default(cuid())
+  clientId     String
+  sessionId    String
+  mediaIds     String[]
+  downloadType DownloadType
+  ipAddress    String
+  timestamp    DateTime     @default(now())
+
+  client  Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  session PhotoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([clientId])
+  @@map("download_history")
+}
+
+model GallerySettings {
+  sessionId              String    @id
+  allowDownloads         Boolean   @default(true)
+  watermarkPreviewImages Boolean   @default(false)
+  watermarkUrl           String?
+  hideOriginalFileNames  Boolean   @default(false)
+  passwordProtected      Boolean   @default(false)
+  passwordHash           String?
+  expiresAt              DateTime?
+  updatedAt              DateTime  @updatedAt
+
+  session PhotoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("gallery_settings")
+}
+
+model PageContent {
+  id        String   @id @default(cuid())
+  pageKey   String   @unique
+  title     String
+  content   Json
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("page_contents")
+}
+
+// Tracks a generated "download entire session" ZIP so it can be reused
+// instead of rebuilt, as long as the session's media hasn't changed since.
+model ZipArchive {
+  id          String   @id @default(cuid())
+  sessionId   String
+  storageKey  String
+  mediaCount  Int
+  // Content fingerprint of the session's media set (ids + sizes) at the time
+  // this archive was built — regenerate only when this no longer matches.
+  contentHash String
+  createdAt   DateTime @default(now())
+
+  session PhotoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("zip_archives")
+}

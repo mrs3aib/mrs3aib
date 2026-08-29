@@ -1,0 +1,14 @@
+# Host node_modules must never enter the image: it holds platform-specific
+# native binaries (sharp, bcrypt, the Prisma engines) built for the developer's
+# OS, which would silently override the ones installed inside the container.
+node_modules
+dist
+
+# Secrets are supplied as Railway variables, never baked into the image.
+.env
+.env.*
+!.env.example
+
+*.log
+*.tsbuildinfo
+.DS_Store
