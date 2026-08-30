@@ -60,8 +60,8 @@ export default function Hero({
   const ctaSecondary = content?.ctaSecondary || t("ctaSecondary");
   const mediaClassName =
     mediaType === "video"
-      ? "absolute inset-0 h-full w-full bg-black object-cover object-center sm:object-cover sm:object-[32%_30%] lg:object-center"
-      : "absolute inset-0 h-full w-full object-cover object-left sm:object-[32%_30%] lg:object-center";
+      ? "absolute inset-0 h-full w-full bg-black object-cover object-center md:object-[32%_30%] lg:object-center"
+      : "absolute inset-0 h-full w-full object-cover object-[center_30%] md:object-[32%_30%] lg:object-center";
 
   return (
     <section className="relative h-[max(32rem,68svh)] overflow-hidden sm:h-svh sm:min-h-180">

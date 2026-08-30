@@ -41,7 +41,7 @@ export default async function About({
               alt={title}
               fill
               sizes="(max-width: 768px) 100vw, 34vw"
-              className="object-cover object-left grayscale"
+              className="object-cover object-center grayscale md:object-left"
             />
             <div className="absolute inset-0 bg-linear-to-l from-transparent via-black/10 to-black/75 rtl:bg-linear-to-r" />
           </div>

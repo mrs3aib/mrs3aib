@@ -63,7 +63,7 @@ export default function CategoryDetail({
           posterUrl={content?.posterUrl}
           fallbackImage={fallbackImage}
           alt={title}
-          className="absolute inset-0 h-full w-full object-cover object-left md:object-[center_30%]"
+          className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
         />
         <div className="absolute inset-0 bg-linear-to-t from-base via-base/50 to-base/10" />
 
