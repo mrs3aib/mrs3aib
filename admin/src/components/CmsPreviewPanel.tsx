@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/i18n/languageContext";
+import { encodePreviewDraft, PREVIEW_DATA_PARAM } from "@/utils/previewPayload";
 
 /**
  * Live preview of the public site, fed the editor's unsaved draft.
@@ -24,7 +25,13 @@ import { useLanguage } from "@/i18n/languageContext";
 
 // Reuses the existing public-site variable rather than adding a second one
 // that would have to be kept in step with it.
-const WEB_BASE = import.meta.env.VITE_PUBLIC_SITE_URL ?? "http://localhost:3000";
+//
+// Trailing slash stripped for the same reason the other call sites strip it:
+// every path below is appended with a leading "/", so a base ending in one
+// builds "//ar" and "//api/cms-preview", which 404 instead of previewing.
+const WEB_BASE = (
+  import.meta.env.VITE_PUBLIC_SITE_URL ?? "http://localhost:3000"
+).replace(/\/+$/, "");
 
 type Viewport = "desktop" | "mobile";
 
@@ -88,32 +95,47 @@ export function CmsPreviewPanel({
     // failure overlay pinned over a perfectly good preview.
     setStatus("loading");
     try {
-      const res = await fetch(`${WEB_BASE}/api/cms-preview`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: previewId,
-          pageKey,
-          content: JSON.parse(serialized)
-        })
-      });
+      const content = JSON.parse(serialized) as unknown;
 
-      if (res.status === 413) {
-        setStatus("too-large");
-        return;
-      }
-      if (!res.ok) {
-        setStatus("error");
-        return;
+      /*
+       * Preferred path: carry the draft in the frame's own URL.
+       *
+       * The site renders on serverless instances, so a draft POSTed to one
+       * instance is usually missing from the one that renders the page — the
+       * preview then silently showed published content instead of the edit.
+       * A draft travelling in the URL is always present on the request that
+       * needs it.
+       */
+      const inline = await encodePreviewDraft(pageKey, content);
+
+      if (!inline) {
+        // Too large to encode; fall back to handing it to the site's store.
+        const res = await fetch(`${WEB_BASE}/api/cms-preview`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: previewId, pageKey, content })
+        });
+
+        if (res.status === 413) {
+          setStatus("too-large");
+          return;
+        }
+        if (!res.ok) {
+          setStatus("error");
+          return;
+        }
       }
 
-      // The draft is stored; reloading is what makes the server render it.
+      // Reloading is what makes the server render the draft.
       //
       // A unique parameter each time because refreshing by hand usually
       // reassigns the *same* URL, which browsers may treat as a no-op — the
       // frame would never reload and `onLoad` would never clear the overlay.
       const frame = frameRef.current;
-      if (frame) frame.src = `${src}&r=${Date.now()}`;
+      if (frame) {
+        const data = inline ? `&${PREVIEW_DATA_PARAM}=${inline}` : "";
+        frame.src = `${src}${data}&r=${Date.now()}`;
+      }
       setRenderedDraft(serialized);
     } catch {
       // Usually the site's dev server not running.

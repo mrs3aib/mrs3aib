@@ -5,6 +5,11 @@ import { YouTubeLinkCard } from "@/components/YouTubeLinkCard";
 import { useMediaUpload, type RejectedUpload } from "@/hooks/useMediaUpload";
 import { useLanguage } from "@/i18n/languageContext";
 import { computeUploadTotals } from "@/utils/uploadTotals";
+import {
+  countByUploadFilter,
+  matchesUploadFilter,
+  type UploadFilter
+} from "@/utils/uploadFilters";
 import { formatBytes } from "@/utils/format";
 
 /**
@@ -25,10 +30,28 @@ export function SessionUploader({
   const [dragActive, setDragActive] = useState(false);
   const [skipped, setSkipped] = useState<RejectedUpload[]>([]);
   const [queueDetailsVisible, setQueueDetailsVisible] = useState(true);
-  const { items, addFiles, retryItem, removeItem, clearCompleted, cancelItem, cancelAll } =
-    useMediaUpload(sessionId);
+  const [queueFilter, setQueueFilter] = useState<UploadFilter>("all");
+  const {
+    items,
+    addFiles,
+    retryItem,
+    retryIncomplete,
+    removeItem,
+    clearCompleted,
+    cancelItem,
+    cancelAll
+  } = useMediaUpload(sessionId);
 
   const totals = computeUploadTotals(items);
+  const filterCounts = countByUploadFilter(items);
+  const visibleItems = items.filter((item) => matchesUploadFilter(item, queueFilter));
+  // Counts what the retry button would actually re-run — not every unfinished
+  // item, since files mid-transfer are left alone. A count that included them
+  // would promise more than the button delivers.
+  const incompleteCount = items.filter(
+    (item) =>
+      item.status === "error" || item.status === "cancelled" || item.status === "queued"
+  ).length;
   const activeUploads = items.some(
     (item) => !["done", "error", "cancelled"].includes(item.status)
   );
@@ -159,6 +182,24 @@ export function SessionUploader({
                 `${items.length} ملفات (${formatBytes(totals.totalBytes)}) • ${totals.done} مكتمل • ${totals.failed} فشل`
               )}
             </p>
+            {/*
+              Sits with the counts rather than only in the footer, so a batch
+              that ends "35 done, 12 failed" can be re-run without expanding
+              the details first — the failures are announced here, so the fix
+              belongs here too.
+            */}
+            {incompleteCount > 0 ? (
+              <button
+                type="button"
+                onClick={retryIncomplete}
+                className="h-8 rounded-lg border border-accent bg-accent/10 px-3 text-xs font-medium text-primary transition-colors hover:bg-accent/15"
+              >
+                {t(
+                  `Retry ${incompleteCount} incomplete`,
+                  `إعادة رفع ${incompleteCount} غير مكتمل`
+                )}
+              </button>
+            ) : null}
             <button
               type="button"
               aria-expanded={queueDetailsVisible}
@@ -170,8 +211,55 @@ export function SessionUploader({
           </div>
 
           {queueDetailsVisible ? <>
-          <ul className="divide-y divide-line">
-            {items.map((item) => {
+          {/*
+            Status filter. After a large batch the useful question is which
+            files did not make it — scrolling 47 rows hunting for 12 failures
+            is the thing this avoids.
+          */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
+            {(["all", "incomplete", "failed", "done"] as const).map((option) => {
+              const label = {
+                all: t("All", "الكل"),
+                incomplete: t("Incomplete", "غير مكتمل"),
+                failed: t("Failed", "فشل"),
+                done: t("Completed", "مكتمل")
+              }[option];
+              const active = queueFilter === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setQueueFilter(option)}
+                  aria-pressed={active}
+                  className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-accent bg-accent/10 text-primary"
+                      : "border-line text-secondary hover:border-accent hover:text-primary"
+                  }`}
+                >
+                  {label}
+                  <span className="ms-1.5 tabular-nums text-secondary">
+                    {filterCounts[option]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/*
+            Capped and scrolled rather than growing without bound. A folder pick
+            routinely queues dozens of files, and at full height the list pushed
+            the rest of the page — including the sessions table below — off
+            screen. `overscroll-contain` keeps a scroll that reaches the end of
+            this list from carrying on into the page behind it.
+          */}
+          <ul className="max-h-[26rem] divide-y divide-line overflow-y-auto overscroll-contain">
+            {visibleItems.length === 0 ? (
+              <li className="px-4 py-10 text-center text-sm text-secondary">
+                {t("No files match this filter.", "لا توجد ملفات تطابق هذا الفلتر.")}
+              </li>
+            ) : null}
+            {visibleItems.map((item) => {
               const canRetry = item.status === "error" || item.status === "cancelled";
               const canCancel = !["done", "error", "cancelled"].includes(item.status);
               return (

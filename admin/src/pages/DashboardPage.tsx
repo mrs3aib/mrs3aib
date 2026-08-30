@@ -2,21 +2,16 @@ import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNod
 import { useNavigate } from "react-router-dom";
 import { LogoLoader } from "@/components/LogoLoader";
 import {
-  BoxIcon,
-  CameraIcon,
   CalendarIcon,
   DatabaseIcon,
   DownloadIcon,
-  DroneIcon,
   EyeIcon,
-  HomeIcon,
   ImageIcon,
   PlusIcon,
-  UtensilsIcon,
-  UsersIcon,
-  VideoIcon
+  UsersIcon
 } from "@/components/icons";
 import { NotificationBell } from "@/components/NotificationBell";
+import { CATEGORY_ICONS } from "@/utils/categoryIcons";
 import { useLanguage } from "@/i18n/languageContext";
 import { useDashboardStatsQuery } from "@/hooks/useDashboardStats";
 import { useSessionsQuery } from "@/hooks/useSessions";
@@ -50,17 +45,6 @@ const RANK_COLORS = [
   "bg-line text-secondary"
 ];
 
-const CATEGORY_ICONS: Record<SessionCategory, Icon> = {
-  weddings: CameraIcon,
-  companies: UsersIcon,
-  restaurants: UtensilsIcon,
-  events: CalendarIcon,
-  products: BoxIcon,
-  realEstate: HomeIcon,
-  drone: DroneIcon,
-  cinematicVideo: VideoIcon
-};
-
 function SessionCategoryOption({
   category,
   label,
@@ -92,15 +76,39 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
   );
 }
 
-function PanelHeader({ title, action }: { title: string; action?: string }) {
+/**
+ * Panel title with an optional "View all" link.
+ *
+ * `to` is required for the button to appear. It previously rendered
+ * unconditionally with no handler at all — it hovered and looked clickable but
+ * did nothing, which reads as a broken dashboard rather than a decorative
+ * heading. A panel with nowhere to go now shows no button.
+ */
+function PanelHeader({
+  title,
+  action,
+  to
+}: {
+  title: string;
+  action?: string;
+  /** Route the button opens. Omitted for panels with no list behind them. */
+  to?: string;
+}) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   return (
     <div className="mb-5 flex items-center justify-between gap-3">
       <h2 className="text-base font-semibold text-primary">{title}</h2>
-      <button className="rounded-md border border-line bg-base px-4 py-2 text-xs text-secondary transition-colors hover:border-accent hover:text-primary">
-        {action ?? t("View all", "عرض الكل")}
-      </button>
+      {to ? (
+        <button
+          type="button"
+          onClick={() => navigate(to)}
+          className="rounded-md border border-line bg-base px-4 py-2 text-xs text-secondary transition-colors hover:border-accent hover:text-primary"
+        >
+          {action ?? t("View all", "عرض الكل")}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -304,7 +312,13 @@ export default function DashboardPage() {
     );
   }
 
-  const storageUsed = formatBytes(data.storageUsageBytes);
+  // Null means the bucket could not be reached. Formatting it as a size would
+  // read as a confident "0 B" — an empty bucket and an unreachable one are not
+  // the same thing, and only one of them is a problem to act on.
+  const storageUsed =
+    data.storageUsageBytes === null
+      ? t("Unavailable", "غير متاح")
+      : formatBytes(data.storageUsageBytes);
   const imageTotal = data.totalImages + data.totalVideos;
   const openAddSession = (category: SessionCategory) => {
     setAddMenuOpen(false);
@@ -355,10 +369,17 @@ export default function DashboardPage() {
                 </div>
               ) : null}
             </div>
-            <button className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm text-secondary transition-colors hover:border-accent hover:text-primary">
+            {/* Opens the live site in a new tab, matching the CMS pages'
+                "Preview page" control. Was a button with no handler. */}
+            <a
+              href={import.meta.env.VITE_PUBLIC_SITE_URL ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-11 items-center gap-2 rounded-lg border border-line bg-card px-4 text-sm text-secondary transition-colors hover:border-accent hover:text-primary"
+            >
               <EyeIcon className="h-4 w-4" />
               {t("Preview site", "معاينة الموقع")}
-            </button>
+            </a>
             <NotificationBell />
             
           </div>
@@ -393,6 +414,12 @@ export default function DashboardPage() {
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1.25fr_1fr]">
         <Card className="p-5">
+          {/*
+            No "view all": this panel merges sessions, clients and downloads,
+            and every candidate page shows only one of those three. A button
+            leading somewhere that lists a third of what is above it is worse
+            than no button.
+          */}
           <PanelHeader title={t("Recent activity", "النشاط الأخير")} />
           <div className="space-y-5">
             {activities.length ? (
@@ -473,7 +500,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="p-5">
-          <PanelHeader title={t("Latest sessions", "أحدث الجلسات")} />
+          <PanelHeader title={t("Latest sessions", "أحدث الجلسات")} to="/sessions" />
           <div className="space-y-5">
             {recentSessions.length ? (
               recentSessions.map((session) => (
@@ -539,7 +566,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="p-5">
-          <PanelHeader title={t("Latest clients", "أحدث العملاء")} />
+          <PanelHeader title={t("Latest clients", "أحدث العملاء")} to="/clients" />
           <div className="space-y-4">
             {recentClients.length ? (
               recentClients.map((client, index) => (
@@ -566,7 +593,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="p-5">
-          <PanelHeader title={t("Most downloaded sessions", "أكثر الجلسات تحميلاً")} />
+          <PanelHeader title={t("Most downloaded sessions", "أكثر الجلسات تحميلاً")} to="/downloads" />
           <div className="space-y-5">
             {topDownloads.length ? (
               topDownloads.map((item, index) => (

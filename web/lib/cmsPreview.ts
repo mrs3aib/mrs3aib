@@ -3,6 +3,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { getPublishedPageContent } from "./api";
 import { getPreviewDraft } from "./previewStore";
+import { decodePreviewDraft, PREVIEW_DATA_PARAM } from "./previewPayload";
 import type { PageContentPayload } from "./cms";
 
 /**
@@ -39,7 +40,14 @@ export const PREVIEW_MAX_BYTES = 512 * 1024;
  * the browser and cannot be forged by page script, so a preview link that
  * escaped into the wild still renders the real site when opened directly.
  */
-async function previewIdForRequest(): Promise<string | null> {
+/**
+ * The preview URL for this request, if it is a genuine framed preview render.
+ *
+ * Requires the request to be a framed navigation: `sec-fetch-dest` is set by
+ * the browser and cannot be forged by page script, so a preview link that
+ * escaped into the wild still renders the real site when opened directly.
+ */
+async function previewUrlForRequest(): Promise<URL | null> {
   const headerList = await headers();
   if (headerList.get("sec-fetch-dest") !== "iframe") return null;
 
@@ -57,7 +65,7 @@ async function previewIdForRequest(): Promise<string | null> {
   try {
     const parsed = new URL(url);
     if (parsed.searchParams.get(PREVIEW_PARAM) !== "1") return null;
-    return parsed.searchParams.get(PREVIEW_ID_PARAM);
+    return parsed;
   } catch {
     return null;
   }
@@ -74,8 +82,20 @@ async function previewIdForRequest(): Promise<string | null> {
 export async function getPageContentForRender(
   pageKey: string
 ): Promise<PageContentPayload | null> {
-  const id = await previewIdForRequest();
-  const draft = id ? getPreviewDraft(id, pageKey) : null;
+  const url = await previewUrlForRequest();
+
+  /*
+   * Inline draft first, store second.
+   *
+   * The URL carries the draft on the same request that renders it, so it works
+   * on a serverless deployment where the POST and the render land on different
+   * instances and the store is empty. The store remains the path for a draft
+   * too large to encode into a URL.
+   */
+  const inline = url?.searchParams.get(PREVIEW_DATA_PARAM);
+  const draft =
+    (inline ? await decodePreviewDraft(inline, pageKey) : null) ??
+    (url ? getPreviewDraft(url.searchParams.get(PREVIEW_ID_PARAM) ?? "", pageKey) : null);
 
   if (draft) {
     return {

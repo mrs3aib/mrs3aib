@@ -221,9 +221,9 @@ Generate each secret with:
 the API answers browser requests normally while the browser discards every
 response. Startup logs a warning when it holds no remote origin.
 
-### 3. Deploy, then create the admin
+### 3. Deploy, then create the admins
 
-Deploying runs the migrations. Create the sign-in account once, against the
+Deploying runs the migrations. Create the sign-in accounts once, against the
 Railway database — from a local shell with `DATABASE_URL`/`DIRECT_URL`
 pointed at Railway, or from `railway run`:
 
@@ -231,8 +231,21 @@ pointed at Railway, or from `railway run`:
     SEED_ADMIN_PASSWORD='<password>' \
     npm run prisma:seed:admin
 
-Credentials come from the environment so none of this lands in the repository.
-Re-running resets that admin's password, which is also how a lockout is fixed.
+For more than one account, pass `SEED_ADMINS` instead — a JSON array, where
+`name` is optional:
+
+    SEED_ADMINS='[{"email":"a@example.com","password":"<pw>","name":"A"},
+                  {"email":"b@example.com","password":"<pw>"}]' \
+    npm run prisma:seed:admin
+
+JSON rather than a delimited list because passwords contain punctuation
+freely: any separator is also a character a password may hold, and guessing
+where one field ends silently seeds the wrong password.
+
+Either variable may live in `server/.env`, which is git-ignored, instead of
+being retyped on each run. Credentials come from the environment so none of
+this lands in the repository. Re-running resets those admins' passwords,
+which is also how a lockout is fixed.
 
 Do **not** run `npm run prisma:seed` against production — that script fills the
 database with demo sessions, clients and media for local development.
