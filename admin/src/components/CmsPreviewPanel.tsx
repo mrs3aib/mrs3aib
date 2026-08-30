@@ -64,6 +64,8 @@ export function CmsPreviewPanel({
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [status, setStatus] = useState<Status>("loading");
   const [scale, setScale] = useState(1);
+  /** Shell height in CSS px, used to size the unscaled frame box. */
+  const [shellHeight, setShellHeight] = useState(0);
   /**
    * The draft the frame is currently showing. Compared against the live draft
    * to tell whether the preview has fallen behind the editor.
@@ -183,6 +185,7 @@ export function CmsPreviewPanel({
       const available = shell.clientWidth;
       if (!available) return;
       setScale(Math.min(1, available / VIEWPORT_WIDTH[viewport]));
+      setShellHeight(shell.clientHeight);
     };
 
     fit();
@@ -269,21 +272,37 @@ export function CmsPreviewPanel({
           The iframe is laid out at full viewport width and visually scaled, so
           the site picks its real breakpoint rather than its mobile one.
         */}
+        {/*
+          The transform lives on this wrapper, not the iframe. `scale()` is
+          purely visual: it never changes layout size, so an iframe laid out at
+          1280px stayed 1280px wide inside a ~560px panel and was clipped by the
+          shell's `overflow-hidden`. Sizing the wrapper to the *unscaled* box and
+          scaling that instead lets the whole thing shrink as one unit.
+
+          Height is derived from the measured shell rather than a percentage:
+          `100 / scale` resolved against a parent that was itself scale-dependent,
+          which inflated the box to ~227% of the shell on desktop. Dividing the
+          real shell height by the scale gives a box that lands back at exactly
+          the shell's height once the transform is applied.
+
+          Mobile hid all of this because its 390px width clamps the scale to 1,
+          where both bugs are no-ops.
+        */}
         <div
           className="origin-top-left"
-          style={{ width: width * scale, height: `${100 / scale}%` }}
+          style={{
+            width,
+            height: shellHeight ? shellHeight / scale : "100%",
+            transform: `scale(${scale})`,
+            transformOrigin: "top left"
+          }}
         >
           <iframe
             ref={frameRef}
             title={t("Site preview", "معاينة الموقع")}
             onLoad={() => setStatus("ready")}
             className="border-0 bg-white"
-            style={{
-              width,
-              height: "100%",
-              transform: `scale(${scale})`,
-              transformOrigin: "top left"
-            }}
+            style={{ width: "100%", height: "100%" }}
           />
         </div>
 
