@@ -102,6 +102,21 @@ async steps of each upload.
 | ----------------------- | --------------------------------------- |
 | `VITE_API_BASE_URL`   | Base URL of the backend API            |
 
+## Deploying
+
+`vercel.json` rewrites every path to `/index.html`. This app uses
+`BrowserRouter`, so routes like `/clients` exist only in the browser — the
+host has no such file. In-app navigation works because React Router handles it
+client-side, but a refresh or a pasted link asks the host for that path
+directly and gets a 404. The rewrite hands every unmatched path to
+`index.html` and lets the router resolve it.
+
+Static files still win over the rewrite, so hashed bundles under `/assets/`
+are served normally rather than being swallowed by it.
+
+A host other than Vercel needs its own equivalent (`try_files ... /index.html`
+on nginx, `_redirects` on Netlify) — without one, the same 404 returns.
+
 ## Known gaps
 
 This app was built against the API contract documented in `Agent.md` and the

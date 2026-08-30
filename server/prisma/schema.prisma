@@ -4,10 +4,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Pooled connection (Supabase pgbouncer, port 6543) — used at runtime.
+  // Runtime queries.
   url = env("DATABASE_URL")
-  // Direct connection (port 5432) — required for migrations, which cannot
-  // run through a transaction pooler.
+  // Migrations, which cannot run through a transaction pooler. Behind a pooled
+  // host this must be the direct connection; on Railway, which fronts Postgres
+  // with no pooler, it is the same URL as above. Required either way.
   directUrl = env("DIRECT_URL")
 }
 

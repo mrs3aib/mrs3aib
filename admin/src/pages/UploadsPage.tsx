@@ -99,7 +99,9 @@ export default function UploadsPage() {
   const { data: dashboardStats, isPending: storagePending } = useDashboardStatsQuery();
   const { items, addFiles, retryItem, removeItem, clearCompleted, cancelItem, cancelAll } = useMediaUpload(sessionId);
   const totals = useMemo(() => computeUploadTotals(items), [items]);
-  const storageUsageBytes = dashboardStats?.storageUsageBytes ?? 0;
+  // Null means the API could not reach the bucket — distinct from a genuine
+  // zero, so it must not fall back to 0 and report an empty bucket.
+  const storageUsageBytes = dashboardStats?.storageUsageBytes ?? null;
 
   // Only real uploads. An empty queue used to be filled with three invented
   // rows stuck at fixed progress, which looked like a stalled transfer.
@@ -428,7 +430,13 @@ export default function UploadsPage() {
               {t(`${queueRows.length} files`, `${queueRows.length} ملفات`)}
             </span>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-line">
+          {/*
+            Capped like the workspace queue: a folder pick can leave dozens of
+            rows here, and an uncapped table pushed everything below it off the
+            page. Vertical scroll is inside the box; horizontal scroll for the
+            table's own min-width stays as it was.
+          */}
+          <div className="max-h-[30rem] overflow-x-auto overflow-y-auto overscroll-contain rounded-lg border border-line">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-line bg-card text-secondary">
@@ -575,12 +583,19 @@ export default function UploadsPage() {
               <p className="text-sm text-secondary">{t("Loading storage...", "جارٍ تحميل التخزين...")}</p>
             ) : (
               <>
-                <p className="text-3xl font-semibold text-primary">{formatBytes(storageUsageBytes)}</p>
+                <p className="text-3xl font-semibold text-primary">
+                  {storageUsageBytes === null ? t("Unavailable", "غير متاح") : formatBytes(storageUsageBytes)}
+                </p>
                 <p className="mt-2 text-sm leading-relaxed text-secondary">
-                  {t(
-                    "Live total of all files in your media bucket.",
-                    "الإجمالي الحالي لجميع الملفات في مساحة الوسائط."
-                  )}
+                  {storageUsageBytes === null
+                    ? t(
+                        "Could not reach the media bucket. Everything else on this page still works.",
+                        "تعذر الوصول إلى مساحة الوسائط. بقية الصفحة تعمل بشكل طبيعي."
+                      )
+                    : t(
+                        "Live total of all files in your media bucket.",
+                        "الإجمالي الحالي لجميع الملفات في مساحة الوسائط."
+                      )}
                 </p>
               </>
             )}
@@ -602,5 +617,11 @@ export default function UploadsPage() {
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-3 text-start text-xs font-medium text-secondary">{children}</th>;
+  // Sticky so the column labels survive scrolling inside the capped queue box.
+  // Needs its own background, or rows would show through as they pass under.
+  return (
+    <th className="sticky top-0 z-10 bg-card px-4 py-3 text-start text-xs font-medium text-secondary">
+      {children}
+    </th>
+  );
 }

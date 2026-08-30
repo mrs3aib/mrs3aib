@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: s3aib-api
+    runtime: node
+    rootDir: server
+    plan: starter
+    # `npm ci --include=dev` is the important part: Render sets NODE_ENV=production,
+    # which makes npm skip devDependencies — and every @types/* package plus
+    # typescript itself live there, so `tsc` fails with TS7016/TS2580 without it.
+    # `prisma generate` must run before `tsc`, since the compile needs the
+    # generated @prisma/client types.
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Browser origins allowed to call this API, comma-separated. Declared
+      # without a value so Render prompts for it instead of the server falling
+      # back to its localhost default, which blocks every request from the
+      # deployed site with a CORS error that is invisible server-side.
+      # e.g. https://yehya.vercel.app
+      - key: CORS_ORIGINS
+        sync: false

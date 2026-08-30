@@ -2,7 +2,17 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 import type { RefreshResponse } from "@/types/auth";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL as string;
+/**
+ * API origin with any trailing slash removed.
+ *
+ * Every request path here starts with "/", so a base URL ending in one
+ * concatenates into "//admin/dashboard/stats". Express treats that as a
+ * different route and answers 404 — the whole CMS fails while the API itself
+ * is perfectly healthy, and the deploy that causes it is a single invisible
+ * character in an environment variable. Normalising here is cheaper than
+ * relying on every deploy to get it right.
+ */
+const baseURL = (import.meta.env.VITE_API_BASE_URL as string).replace(/\/+$/, "");
 
 export const apiClient = axios.create({
   baseURL,

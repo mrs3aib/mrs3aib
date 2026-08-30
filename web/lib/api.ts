@@ -10,7 +10,16 @@
 import type { Album, CategoryId } from "./data";
 import type { CmsCategory, HomepageCmsContent, PageContentPayload } from "./cms";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+/**
+ * API origin with any trailing slash removed.
+ *
+ * Every path below starts with "/", so a base URL ending in one builds
+ * "//public/sessions". Express routes that as a distinct path and answers 404,
+ * so the entire site fails against a perfectly healthy API over one invisible
+ * character in an environment variable. Empty stays empty: `isBackendConfigured`
+ * treats "" as "no backend", which must keep working.
+ */
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 /** How long a successful response is reused before refetching (seconds). */
 const REVALIDATE_SECONDS = 3600;

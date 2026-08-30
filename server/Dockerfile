@@ -9,6 +9,12 @@
 # prebuilt binaries for it.
 FROM node:22-slim AS build
 
+# Prisma probes for libssl to pick its query-engine binary. The slim image
+# ships none, so detection falls back to a guessed "openssl-1.1.x" engine and
+# warns on every boot. Installing it makes the choice correct rather than
+# lucky.
+RUN apt-get update -y   && apt-get install -y --no-install-recommends openssl ca-certificates   && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Dependencies first, so a source-only change reuses the install layer.
@@ -31,6 +37,10 @@ RUN npm run build
 # Runtime: production dependencies plus the compiled output.
 # ---------------------------------------------------------------------------
 FROM node:22-slim AS runtime
+
+# Same reason as the build stage: the runtime container is where `migrate
+# deploy` and every query actually run, so the engine must resolve here too.
+RUN apt-get update -y   && apt-get install -y --no-install-recommends openssl ca-certificates   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 
