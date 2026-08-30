@@ -273,6 +273,15 @@ export function CmsPreviewPanel({
           the site picks its real breakpoint rather than its mobile one.
         */}
         {/*
+          Absolutely positioned at the shell's physical left edge, and `dir`
+          forced back to ltr. The admin flips `document.documentElement.dir` to
+          rtl for Arabic, and in RTL a block wider than its parent is laid out
+          from the right edge and overflows *leftwards* — so this 1280px box
+          started ~720px outside the shell and `origin-top-left` scaled it
+          toward that off-screen corner, leaving the panel blank. `left-0` and
+          an explicit `dir` make the position physical, so the preview lands in
+          the same place whichever language the admin is in.
+
           The transform lives on this wrapper, not the iframe. `scale()` is
           purely visual: it never changes layout size, so an iframe laid out at
           1280px stayed 1280px wide inside a ~560px panel and was clipped by the
@@ -289,7 +298,8 @@ export function CmsPreviewPanel({
           where both bugs are no-ops.
         */}
         <div
-          className="origin-top-left"
+          dir="ltr"
+          className="absolute left-0 top-0 origin-top-left"
           style={{
             width,
             height: shellHeight ? shellHeight / scale : "100%",
