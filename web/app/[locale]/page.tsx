@@ -64,7 +64,7 @@ export default async function HomePage({
       // A signed, already-sized backend URL — see `GalleryTile.signed`.
       signed: true
     }));
-
+console.log("hi")
   return (
     <>
       <Hero content={cms?.hero} categoryItems={categoryItems} />

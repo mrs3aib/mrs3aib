@@ -41,7 +41,7 @@ function AppRoutes() {
       </div>
     );
   }
-
+console.log("hi")
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute bootstrapOutcome={outcome} />} />
