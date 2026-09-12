@@ -60,6 +60,7 @@ export function SessionsTableCard({
   onCreate,
   onPageChange,
   onPageSizeChange,
+  onOpenMedia,
   ...actions
 }: {
   sessions: PhotoSession[];
@@ -77,6 +78,8 @@ export function SessionsTableCard({
   onCreate: () => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  /** Opens the selected session's media workspace. */
+  onOpenMedia: (session: PhotoSession) => void;
 } & SessionActionHandlers) {
   const { t } = useLanguage();
 
@@ -154,6 +157,7 @@ export function SessionsTableCard({
                     menuOpen={menuFor === session.id}
                     statusLabel={statusLabel}
                     updatePending={updatePending}
+                    onOpenMedia={onOpenMedia}
                     {...actions}
                   />
                 ))}
@@ -181,12 +185,14 @@ function SessionRow({
   menuOpen,
   statusLabel,
   updatePending,
+  onOpenMedia,
   ...actions
 }: {
   session: PhotoSession;
   menuOpen: boolean;
   statusLabel: (status: SessionStatus) => string;
   updatePending: boolean;
+  onOpenMedia: (session: PhotoSession) => void;
 } & SessionActionHandlers) {
   const { t, language } = useLanguage();
   const actionButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -201,7 +207,22 @@ function SessionRow({
         : t("Public", "عام");
 
   return (
-    <tr className="border-b border-line last:border-0 hover:bg-base/65">
+    <tr
+      tabIndex={0}
+      aria-label={t(
+        `Open media for ${session.title}`,
+        `Ø§ÙØªØ­ Ø§Ù„ÙˆØ³Ø§Ø¦Ø· Ù„Ø¬Ù„Ø³Ø© ${session.title}`
+      )}
+      onClick={() => onOpenMedia(session)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenMedia(session);
+        }
+      }}
+      className="cursor-pointer border-b border-line outline-none last:border-0 hover:bg-base/65 focus-visible:bg-base/65 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+    >
       <td className="px-3 py-4 lg:px-4">
         <div className="flex min-w-0 items-center gap-3">
           <SessionCover

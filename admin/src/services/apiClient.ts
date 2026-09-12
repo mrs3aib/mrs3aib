@@ -12,7 +12,16 @@ import type { RefreshResponse } from "@/types/auth";
  * character in an environment variable. Normalising here is cheaper than
  * relying on every deploy to get it right.
  */
-const baseURL = (import.meta.env.VITE_API_BASE_URL as string).replace(/\/+$/, "");
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
+if (!rawBaseURL) {
+  throw new Error(
+    "VITE_API_BASE_URL is not set. Copy admin/.env.example to admin/.env and " +
+      "restart the dev server — Vite only reads .env files at startup."
+  );
+}
+
+const baseURL = rawBaseURL.replace(/\/+$/, "");
 
 export const apiClient = axios.create({
   baseURL,

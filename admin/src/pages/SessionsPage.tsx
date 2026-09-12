@@ -284,6 +284,7 @@ export default function SessionsPage() {
             onMenuChange={setMenuFor}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
+            onOpenMedia={openUploads}
           />
         </div>
 

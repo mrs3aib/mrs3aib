@@ -46,6 +46,26 @@ const PUBLIC_ALBUM_MEDIA_SELECT = {
       media: { where: { processingStatus: "ready" as const, type: "image" as const } }
     }
   },
+  /**
+   * Whether a password actually stands in the way, joined here rather than
+   * looked up once per album — one query for the page instead of one per card.
+   *
+   * Only the two booleans are selected; `passwordHash` is never read, so the
+   * hash cannot leak into a listing by accident. A one-to-one relation cannot
+   * be counted, hence a select rather than `_count`.
+   */
+  gallerySettings: {
+    select: {
+      passwordProtected: true,
+      /**
+       * Whether a hash exists, never the hash. `passwordProtected` alone is not
+       * enough: an album flagged protected with no password set would otherwise
+       * be reported locked while being permanently unopenable — the same pair
+       * `isPasswordGated` checks.
+       */
+      passwordHash: true
+    }
+  },
   media: {
     where: { processingStatus: "ready" as const },
     // An image with a thumbnail is the preferred automatic cover, so ordering
@@ -121,6 +141,9 @@ export const sessionRepository = {
         location: true,
         description: true,
         coverImage: true,
+        coverStorageKey: true,
+        coverImageExternalUrl: true,
+        visibility: true,
         ...PUBLIC_ALBUM_MEDIA_SELECT
       }
     });
@@ -156,6 +179,9 @@ export const sessionRepository = {
         location: true,
         description: true,
         coverImage: true,
+        coverStorageKey: true,
+        coverImageExternalUrl: true,
+        visibility: true,
         ...PUBLIC_ALBUM_MEDIA_SELECT
       }
     });

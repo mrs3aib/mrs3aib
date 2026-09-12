@@ -3,6 +3,7 @@ import { TextField } from "@/components/TextField";
 import { TextareaField } from "@/components/TextareaField";
 import { SelectField } from "@/components/SelectField";
 import { Repeater } from "@/components/Repeater";
+import { ImageUploadField } from "@/components/ImageUploadField";
 import { CheckIcon, CloseIcon } from "@/components/icons";
 import { useLanguage } from "@/i18n/languageContext";
 import { SessionPicker } from "./SessionPicker";
@@ -332,9 +333,53 @@ export function LatestWeddingsEditor({
   );
 }
 
-export function StoryEditor({ value, onChange, locale }: SectionProps<"story">) {
-  const images = value.images ?? [];
+export function StoryEditor({
+  value,
+  onChange,
+  locale,
+  pageKey
+}: SectionProps<"story"> & {
+  /** Asset folder story image uploads are written to. */
+  pageKey: string;
+}) {
   const { t } = useLanguage();
+  /**
+   * Images used to live in a separate three-item list. Content saved back then
+   * still has them, so they seed the matching chapter's field by position and
+   * are written onto the chapter the moment it is edited.
+   */
+  const legacyImages = value.images ?? [];
+  const chapters = value.chapters ?? [];
+
+  /**
+   * Chapter prose for the tab in view. The shared `chapters` entry supplies the
+   * number and image; `chaptersText[locale]` supplies title and text, falling
+   * back to the legacy shared fields so content authored before the split still
+   * shows while it is being translated.
+   */
+  const chapterText = value.chaptersText?.[locale] ?? [];
+  const chapterTextAt = (index: number) => ({
+    title: chapterText[index]?.title ?? chapters[index]?.title ?? "",
+    text: chapterText[index]?.text ?? chapters[index]?.text ?? ""
+  });
+
+  /** Write one chapter's prose into the tab's locale, leaving others untouched. */
+  const setChapterText = (index: number, patch: { title?: string; text?: string }) => {
+    const nextForLocale: { title: string; text: string }[] = chapters.map((_, i) =>
+      chapterTextAt(i)
+    );
+    // `chapters` drives the length above, so this index exists whenever the
+    // field being edited does; the fallback keeps the types honest regardless.
+    const current = nextForLocale[index] ?? chapterTextAt(index);
+    nextForLocale[index] = {
+      title: patch.title ?? current.title,
+      text: patch.text ?? current.text
+    };
+    onChange({
+      ...value,
+      chaptersText: { ...value.chaptersText, [locale]: nextForLocale }
+    });
+  };
   const { text, setText, tr } = useLocalizedSection(value, onChange, "story", locale);
 
   return (
@@ -357,65 +402,50 @@ export function StoryEditor({ value, onChange, locale }: SectionProps<"story">) 
         onChange={(e) => setText({ intro: e.target.value })}
       />
 
-      {/* The story layout is a fixed three-image composition, so anything other
-          than exactly three is ignored by the site and falls back to defaults. */}
-      <Repeater
-        label={t("Images (exactly 3 to take effect)", "الصور (3 بالضبط ليتم تطبيقها)")}
-        items={images}
-        onChange={(next) => onChange({ ...value, images: next })}
-        createItem={() => ""}
-        addLabel={t("Add image", "إضافة صورة")}
-        maxItems={3}
-        emptyHint={t(
-          "Add three images to override the default story visuals.",
-          "أضف ثلاث صور لاستبدال صور القصة الافتراضية."
-        )}
-        renderItem={(item, index, update) => (
-          <TextField
-            label={t("Image URL", "رابط الصورة")}
-            name={`story-image-${index}`}
-            value={item}
-            onChange={(e) => update(e.target.value)}
-            placeholder="https://..."
-          />
-        )}
-      />
-      {images.length > 0 && images.length !== 3 ? (
-        <p className="text-xs text-danger">
-          {t(
-            `${images.length} of 3 images set — the site uses its default images until all three are provided.`,
-            `تم تعيين ${images.length} من 3 صور — سيستخدم الموقع صوره الافتراضية حتى يتم توفير الثلاث صور.`
-          )}
-        </p>
-      ) : null}
 
+      {/* Each chapter carries its own background image: the site cross-fades
+          from one chapter to the next, so image and copy belong together. */}
       <Repeater
         label={t("Chapters", "الفصول")}
-        items={value.chapters ?? []}
-        onChange={(chapters) => onChange({ ...value, chapters })}
-        createItem={() => ({ number: "", title: "", text: "" })}
+        items={chapters}
+        onChange={(next) => onChange({ ...value, chapters: next })}
+        createItem={() => ({ number: "", title: "", text: "", image: "" })}
         addLabel={t("Add chapter", "إضافة فصل")}
+        emptyHint={t(
+          "Add chapters — each one has its own text and background image.",
+          "أضف فصولاً — لكل فصل نصه وصورته الخلفية."
+        )}
         renderItem={(item, index, update) => (
           <div className="grid gap-3">
             <div className="grid gap-3 md:grid-cols-[8rem_1fr]">
               <TextField
-                label={t("Number", "الرقم")}
+                label={sharedLabel(t("Number", "الرقم"), t("ALL", "الكل"))}
                 name={`story-chapter-number-${index}`}
                 value={item.number ?? ""}
                 onChange={(e) => update({ ...item, number: e.target.value })}
               />
               <TextField
-                label={t("Title", "العنوان")}
+                label={tr(t("Title", "العنوان"))}
                 name={`story-chapter-title-${index}`}
-                value={item.title ?? ""}
-                onChange={(e) => update({ ...item, title: e.target.value })}
+                value={chapterTextAt(index).title}
+                onChange={(e) => setChapterText(index, { title: e.target.value })}
               />
             </div>
             <TextareaField
-              label={t("Text", "النص")}
+              label={tr(t("Text", "النص"))}
               name={`story-chapter-text-${index}`}
-              value={item.text ?? ""}
-              onChange={(e) => update({ ...item, text: e.target.value })}
+              value={chapterTextAt(index).text}
+              onChange={(e) => setChapterText(index, { text: e.target.value })}
+            />
+            <ImageUploadField
+              pageKey={pageKey}
+              label={sharedLabel(
+                t("Background image", "الصورة الخلفية"),
+                t("ALL", "الكل")
+              )}
+              name={`story-chapter-image-${index}`}
+              value={item.image ?? legacyImages[index] ?? ""}
+              onChange={(image) => update({ ...item, image })}
             />
           </div>
         )}

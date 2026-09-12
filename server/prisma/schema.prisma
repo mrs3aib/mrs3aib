@@ -99,7 +99,17 @@ model PhotoSession {
   title       String
   slug        String          @unique
   category    SessionCategory
+  /// Media id pinned as the cover. A fallback: used only when no cover image
+  /// has been uploaded for this session.
   coverImage  String?
+  /// Storage key of a cover image uploaded for this session specifically.
+  /// Wins over `coverImage` in gallery listings, so the card shown on the home
+  /// and category galleries need not be a frame of the album's own media.
+  coverStorageKey String?
+  /// Externally hosted cover image, pasted rather than uploaded. Held apart
+  /// from `coverStorageKey` because it is not ours: it is served as-is rather
+  /// than signed, and must never be deleted from our storage.
+  coverImageExternalUrl String?
   eventDate   DateTime
   location    String
   description String?

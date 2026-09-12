@@ -443,6 +443,7 @@ export default function HomePageManager() {
         value={draft.story ?? {}}
         onChange={(next) => update("story", next)}
         locale={locale}
+        pageKey="home"
       />
     ),
     process: (

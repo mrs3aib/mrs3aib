@@ -96,6 +96,8 @@ export type PublicAlbum = {
   description: string | null;
   photoCount: number;
   videoCount: number;
+  /** Whether opening this album asks for the gallery password. */
+  requiresPassword?: boolean;
   coverUrl: string | null;
   /** "video" when the pinned cover is a video, so the card shows a player. */
   coverType?: "image" | "video" | null;
@@ -166,6 +168,11 @@ export type ResolvedAlbum = Album & {
   description?: string | null;
   /** Image count supplied by the session listing, available before the modal loads media. */
   photoCount: number;
+  /**
+   * Whether opening this album asks for the gallery password, so a card can
+   * prompt in place instead of sending the visitor to a page that refuses them.
+   */
+  requiresPassword?: boolean;
   photos: ResolvedPhoto[];
   coverUrl: string;
   /** "video" when the admin pinned a video as the cover. */
@@ -294,6 +301,7 @@ function toLiveAlbum(base: Album, summary: PublicAlbum): ResolvedAlbum {
     title: summary.title,
     description: summary.description,
     photoCount: summary.photoCount,
+    ...(summary.requiresPassword ? { requiresPassword: true } : {}),
     photos: [],
     // Empty rather than a seeded stock image when the cover has not been
     // generated yet — the card renders without one instead of showing a photo

@@ -1,8 +1,8 @@
-import Image from "next/image";
 import { getTranslations } from "next-intl/server";
 import { clients } from "@/lib/data";
 import type { HomepageCmsContent } from "@/lib/cms";
 import { FadeUp } from "./Reveal";
+import { ClientsMarquee } from "./ClientsMarquee";
 
 export default async function Clients({
   content
@@ -46,22 +46,11 @@ export default async function Clients({
       </div>
 
       <FadeUp>
-        <div className="marquee-viewport overflow-hidden">
-          <div className="marquee-track flex w-max items-center gap-16 md:gap-24">
-            {[...companyLogos, ...companyLogos].map((client, i) => (
-              <Image
-                key={`${client.name}-${i}`}
-                src={client.logo}
-                alt={client.name}
-                width={170}
-                height={32}
-                unoptimized={usingCmsLogos}
-                aria-hidden={i >= companyLogos.length}
-                className="h-9 w-auto shrink-0 cursor-default opacity-100 grayscale-0 transition-all duration-500 hover:opacity-100 hover:grayscale-0 md:h-11 md:opacity-50 md:grayscale"
-              />
-            ))}
-          </div>
-        </div>
+        <ClientsMarquee
+          logos={companyLogos}
+          unoptimized={usingCmsLogos}
+          label={t("label")}
+        />
       </FadeUp>
     </section>
   );

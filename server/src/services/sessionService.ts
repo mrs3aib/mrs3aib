@@ -11,6 +11,8 @@ import { slugify } from "@/utils/slugify";
 import { toSkipTake, paginate, type PaginatedResult } from "@/utils/pagination";
 import { NotFoundError } from "@/types/errors";
 import { youTubeThumbnailUrl } from "@/utils/youtube";
+import { storageKeys } from "@/storage/storageKeys";
+import { logger } from "@/config/logger";
 import { storageProvider } from "./serviceRegistry";
 import { revalidatePublicSite } from "./siteRevalidationService";
 
@@ -25,6 +27,10 @@ export type SessionDto = {
   category: SessionCategory;
   coverImage: string | null;
   coverImageUrl: string | null;
+  /** Whether a cover was uploaded for this session rather than pinned. */
+  hasUploadedCover: boolean;
+  /** Externally hosted cover URL, when one was pasted rather than uploaded. */
+  coverImageExternalUrl: string | null;
   eventDate: string;
   location: string;
   description: string | null;
@@ -45,7 +51,27 @@ export type SessionListResult = PaginatedResult<SessionDto> & {
   statusCounts: Record<SessionStatus, number>;
 };
 
-async function resolveCoverImageUrl(session: Pick<PhotoSession, "id" | "coverImage">) {
+async function resolveCoverImageUrl(
+  session: Pick<
+    PhotoSession,
+    "id" | "coverImage" | "coverStorageKey" | "coverImageExternalUrl"
+  >
+) {
+  /**
+   * A cover chosen for this session wins outright: it exists precisely so the
+   * gallery card need not be a frame of the album's own media. Only when none
+   * is set do the pinned item and the automatic pick apply.
+   *
+   * An uploaded file is signed; a pasted URL is someone else's and is served
+   * exactly as given. Upload takes precedence when both are somehow set.
+   */
+  if (session.coverStorageKey) {
+    return storageProvider.getDownloadUrl(session.coverStorageKey);
+  }
+  if (session.coverImageExternalUrl) {
+    return session.coverImageExternalUrl;
+  }
+
   const media = await mediaRepository.findAllForSession(session.id);
   const ready = media.filter((item) => item.processingStatus === "ready");
   const pinned = session.coverImage
@@ -74,6 +100,8 @@ async function toDto(session: SessionWithCounts): Promise<SessionDto> {
     category: session.category,
     coverImage: session.coverImage,
     coverImageUrl: await resolveCoverImageUrl(session),
+    hasUploadedCover: Boolean(session.coverStorageKey),
+    coverImageExternalUrl: session.coverImageExternalUrl,
     eventDate: session.eventDate.toISOString(),
     location: session.location,
     description: session.description,
@@ -215,5 +243,108 @@ export const sessionService = {
   async assignClients(sessionId: string, clientIds: string[]): Promise<void> {
     if (clientIds.length === 0) return;
     await clientRepository.reassignMany(clientIds, sessionId);
+  },
+
+  /**
+   * Store a cover image chosen for this session specifically.
+   *
+   * Independent of the album's own media: the galleries show this rather than a
+   * frame of whatever the album happens to contain. Replacing one deletes the
+   * file it replaced, since nothing else ever references it.
+   */
+  async uploadCover(id: string, file: Express.Multer.File): Promise<SessionDto> {
+    const session = await sessionRepository.findById(id);
+    if (!session) throw new NotFoundError("Session not found");
+
+    const previousKey = session.coverStorageKey;
+    const storageKey = storageKeys.sessionCover(id, file.originalname);
+    await storageProvider.upload(storageKey, file.buffer, file.mimetype);
+    // The pasted URL is cleared so only one cover source is ever set, and the
+    // admin is never left wondering which of the two is winning.
+    await sessionRepository.update(id, {
+      coverStorageKey: storageKey,
+      coverImageExternalUrl: null
+    });
+
+    // After the row points at the new file, so a failed delete leaves an
+    // orphan rather than a session whose cover 404s.
+    if (previousKey) {
+      try {
+        await storageProvider.delete(previousKey);
+      } catch (error) {
+        logger.warn(
+          { sessionId: id, error: error instanceof Error ? error.message : error },
+          "Replaced session cover could not be deleted"
+        );
+      }
+    }
+
+    void revalidatePublicSite(`session:cover:${id}`);
+    return this.getById(id);
+  },
+
+  /**
+   * Point the cover at an externally hosted image.
+   *
+   * The counterpart to uploading: some covers already live somewhere else and
+   * only the link is to hand. Any previously uploaded file is deleted, since
+   * nothing references it once the URL takes over.
+   */
+  async setCoverUrl(id: string, url: string): Promise<SessionDto> {
+    const session = await sessionRepository.findById(id);
+    if (!session) throw new NotFoundError("Session not found");
+
+    const previousKey = session.coverStorageKey;
+    await sessionRepository.update(id, {
+      coverImageExternalUrl: url,
+      coverStorageKey: null
+    });
+
+    if (previousKey) {
+      try {
+        await storageProvider.delete(previousKey);
+      } catch (error) {
+        logger.warn(
+          { sessionId: id, error: error instanceof Error ? error.message : error },
+          "Replaced session cover could not be deleted"
+        );
+      }
+    }
+
+    void revalidatePublicSite(`session:cover:${id}`);
+    return this.getById(id);
+  },
+
+  /**
+   * Drop the session's own cover, whether uploaded or pasted, returning it to
+   * the pinned item or the automatic pick.
+   */
+  async removeCover(id: string): Promise<SessionDto> {
+    const session = await sessionRepository.findById(id);
+    if (!session) throw new NotFoundError("Session not found");
+
+    if (!session.coverStorageKey && !session.coverImageExternalUrl) {
+      return this.getById(id);
+    }
+
+    await sessionRepository.update(id, {
+      coverStorageKey: null,
+      coverImageExternalUrl: null
+    });
+
+    // Only ours is deleted: a pasted URL points at a file we do not own.
+    if (session.coverStorageKey) {
+      try {
+        await storageProvider.delete(session.coverStorageKey);
+      } catch (error) {
+        logger.warn(
+          { sessionId: id, error: error instanceof Error ? error.message : error },
+          "Removed session cover could not be deleted"
+        );
+      }
+    }
+
+    void revalidatePublicSite(`session:cover:${id}`);
+    return this.getById(id);
   }
 };

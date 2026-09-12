@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { sessionController } from "@/controllers/sessionController";
 import { gallerySettingsController } from "@/controllers/gallerySettingsController";
 import { validate } from "@/middleware/validate";
@@ -8,7 +9,9 @@ import {
   assignClientsSchema,
   createSessionSchema,
   listSessionsSchema,
+  sessionCoverParamSchema,
   sessionIdParamSchema,
+  setSessionCoverUrlSchema,
   updateSessionSchema
 } from "@/validations/sessionValidations";
 import {
@@ -17,6 +20,22 @@ import {
 } from "@/validations/gallerySettingsValidations";
 
 export const adminSessionsRouter = Router();
+
+/**
+ * A session cover is a single still shown on gallery cards, so it is capped far
+ * below the album media limit and accepts images only.
+ */
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Only image files are allowed for a session cover"));
+  }
+});
 
 adminSessionsRouter.use(requireAuth, requireAdmin);
 
@@ -122,6 +141,44 @@ adminSessionsRouter.post(
  *     responses:
  *       200: { description: Updated gallery settings }
  */
+/**
+ * @openapi
+ * /admin/sessions/{sessionId}/cover:
+ *   post:
+ *     tags: [Admin Sessions]
+ *     summary: Upload a cover image for this session's gallery cards
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Updated session }
+ *   put:
+ *     tags: [Admin Sessions]
+ *     summary: Point the cover at an externally hosted image
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Updated session }
+ *   delete:
+ *     tags: [Admin Sessions]
+ *     summary: Remove the session's own cover, reverting to the pinned or automatic one
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Updated session }
+ */
+adminSessionsRouter
+  .route("/:sessionId/cover")
+  .post(
+    validate(sessionCoverParamSchema),
+    coverUpload.single("file"),
+    asyncHandler(sessionController.uploadCover)
+  )
+  .put(
+    validate(setSessionCoverUrlSchema),
+    asyncHandler(sessionController.setCoverUrl)
+  )
+  .delete(
+    validate(sessionCoverParamSchema),
+    asyncHandler(sessionController.removeCover)
+  );
+
 adminSessionsRouter
   .route("/:sessionId/settings")
   .get(validate(gallerySettingsParamSchema), asyncHandler(gallerySettingsController.get))

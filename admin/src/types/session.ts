@@ -10,6 +10,13 @@ export type PhotoSession = {
   category: SessionCategory;
   coverImage: string | null;
   coverImageUrl: string | null;
+  /**
+   * Whether `coverImageUrl` came from a cover uploaded for this session rather
+   * than from a pinned or automatically picked media item.
+   */
+  hasUploadedCover: boolean;
+  /** Externally hosted cover URL, when one was pasted rather than uploaded. */
+  coverImageExternalUrl: string | null;
   eventDate: string;
   location: string;
   description: string | null;

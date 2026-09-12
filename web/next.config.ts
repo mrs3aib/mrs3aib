@@ -40,11 +40,8 @@ function apiHostPattern() {
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      ...placeholderHosts.map((hostname) => ({
-        protocol: "https" as const,
-        hostname
-      })),
-      ...apiHostPattern()
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "**" }
     ]
   }
 };

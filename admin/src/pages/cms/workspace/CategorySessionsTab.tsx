@@ -338,6 +338,7 @@ export function CategorySessionsTab({
             onMenuChange={setMenuFor}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
+            onOpenMedia={onOpenMedia}
           />
         </div>
 

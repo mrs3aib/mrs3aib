@@ -113,8 +113,24 @@ export type HomepageCmsContent = {
     label?: string;
     title?: string;
     intro?: string;
+    /**
+     * Legacy three-image composition, kept so content saved before images
+     * moved onto chapters still renders. New edits write `chapters[].image`;
+     * this is only read when a chapter has no image of its own.
+     */
     images?: string[];
-    chapters?: { number?: string; title?: string; text?: string }[];
+    /**
+     * Shared per-chapter fields: the image and the chapter number are the same
+     * whatever language the reader has chosen. Chapter prose lives in
+     * `chaptersText`, keyed by locale, so AR and EN can differ.
+     *
+     * `title`/`text` here are legacy — content authored before chapter prose
+     * was split by locale. They seed `chaptersText.en` and are read as the
+     * fallback until the chapter is edited.
+     */
+    chapters?: { number?: string; title?: string; text?: string; image?: string }[];
+    /** Per-locale chapter prose, positionally matched to `chapters`. */
+    chaptersText?: Localized<{ title?: string; text?: string }[]>;
     text?: Localized<{ label?: string; title?: string; intro?: string }>;
   };
   process?: {

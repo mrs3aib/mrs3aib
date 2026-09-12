@@ -29,6 +29,7 @@ import {
   PlayIcon,
   QrIcon,
   RowsIcon,
+  SearchIcon,
   ShareIcon,
   VideoCameraIcon
 } from "./icons";
@@ -619,7 +620,14 @@ function AlbumPreview({
                   className="absolute inset-0 z-20 flex items-center justify-center bg-black/10 transition-colors hover:bg-black/25"
                 >
                   <span className="flex h-16 w-16 items-center justify-center rounded border border-white/35 bg-black/55 text-white backdrop-blur-md transition-transform duration-500 group-hover:scale-105 group-active:scale-105">
-                    <PlayIcon className="h-6 w-6" />
+                    {/* A play symbol over a still image promises a video that
+                        does not exist; an image cover opens the lightbox, so it
+                        gets the magnifier instead. */}
+                    {isVideoCover || isEmbedCover ? (
+                      <PlayIcon className="h-6 w-6" />
+                    ) : (
+                      <SearchIcon className="h-6 w-6" />
+                    )}
                   </span>
                 </button>
               ) : null}
