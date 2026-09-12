@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { HeroFields } from "./HeroFields";
 import { LanguageTabs } from "./SectionEditors";
@@ -79,7 +79,11 @@ export default function CategoryPagesManager() {
   const { t, language } = useLanguage();
   const [saved, setSaved] = useState(false);
   const [locale, setLocale] = useState<CmsLocale>(DEFAULT_CMS_LOCALE);
-  const [mediaSessionId, setMediaSessionId] = useState("");
+  // A session id in the URL lets dashboards and other admin views link
+  // directly to this category's media workspace with the right session open.
+  const [mediaSessionId, setMediaSessionId] = useState(
+    () => searchParams.get("sessionId") ?? ""
+  );
 
   const { data: categoriesData } = usePageContentQuery("categories");
 
@@ -92,6 +96,7 @@ export default function CategoryPagesManager() {
     categories.find((category) => category.id === categoryId)?.id ??
     categories[0]?.id ??
     DEFAULT_CATEGORIES[0]!.id;
+  const previousCategoryRef = useRef(selected);
   const activeCategory = categories.find((category) => category.id === selected);
   const sessionCategory = isSessionCategory(selected) ? selected : undefined;
   const localizedCategoryLabel = sessionCategory
@@ -135,14 +140,28 @@ export default function CategoryPagesManager() {
   const [hero, setHero] = useState<CmsHero>(initial.hero ?? {});
   const [pageHidden, setPageHidden] = useState(false);
 
+  /**
+   * Seeded once the fetch settles, not merely when `data` is truthy.
+   *
+   * A category with no CMS record yet resolves to `null`, which is a legitimate
+   * "nothing saved" rather than "still loading" — keying on `data` alone left
+   * those categories showing the previously selected one's values. `isPending`
+   * is the only signal that separates the two, and while it is true the form
+   * must not adopt the empty defaults: that reset the toggle to "Visible on
+   * site", so saving an already-hidden category silently un-hid it.
+   */
   useEffect(() => {
+    if (isPending) return;
     setHero(initial.hero ?? {});
     setPageHidden(Boolean(initial.pageHidden));
     setSaved(false);
-  }, [initial]);
+  }, [isPending, initial]);
 
-  // A session chosen on one page must not leak into the next one.
+  // A session chosen on one page must not leak into another category. Do not
+  // clear on mount: dashboard links seed the selected session from the URL.
   useEffect(() => {
+    if (previousCategoryRef.current === selected) return;
+    previousCategoryRef.current = selected;
     setMediaSessionId("");
   }, [selected]);
 
@@ -153,6 +172,12 @@ export default function CategoryPagesManager() {
   }, [selected]);
 
   const handleSave = async () => {
+    /**
+     * Blocked only while the fetch is in flight. A category with no record yet
+     * saves normally — that is how its record gets created; what must not
+     * happen is saving the empty defaults shown before the real content lands.
+     */
+    if (isPending) return;
     await updatePage.mutateAsync({
       title: data?.title ?? activeCategory?.label ?? selected,
       published: data?.published ?? true,
@@ -165,8 +190,42 @@ export default function CategoryPagesManager() {
     setSaved(true);
   };
 
+  /**
+   * Visibility persists on click rather than waiting for "Save & publish".
+   *
+   * That button only renders on the Content tab, while this toggle sits in the
+   * header of every tab — and the workspace opens on Sessions. So on the tab an
+   * admin actually lands on, toggling visibility had no reachable way to be
+   * saved, and the change silently reverted on the next refresh.
+   */
+  const handleToggleHidden = async () => {
+    if (isPending || updatePage.isPending) return;
+
+    const nextHidden = !pageHidden;
+    setPageHidden(nextHidden);
+    setSaved(false);
+
+    try {
+      await updatePage.mutateAsync({
+        title: data?.title ?? activeCategory?.label ?? selected,
+        published: data?.published ?? true,
+        content: {
+          ...initial,
+          hero: migrateLegacySectionText(hero, "hero"),
+          pageHidden: nextHidden
+        }
+      });
+      setSaved(true);
+    } catch {
+      // Put the switch back so it never shows a state the server rejected.
+      setPageHidden(!nextHidden);
+    }
+  };
+
   const handleCommitHeroMedia = async (nextHero: CmsHero) => {
     setHero(nextHero);
+    // Same guard as `handleSave`: never persist while the fetch is in flight.
+    if (isPending) return;
     await updatePage.mutateAsync({
       title: data?.title ?? activeCategory?.label ?? selected,
       published: data?.published ?? true,
@@ -221,13 +280,17 @@ export default function CategoryPagesManager() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => {
-                setPageHidden((current) => !current);
-                setSaved(false);
-              }}
-              title={t("Save to apply visibility changes", "احفظ لتطبيق تغييرات الظهور")}
+              // Inert only while loading: before then the toggle is showing a
+              // default, not this category's real visibility. A category with
+              // no record yet is fully editable.
+              disabled={isPending || updatePage.isPending}
+              onClick={() => void handleToggleHidden()}
+              title={t(
+                "Applied immediately",
+                "يُطبَّق فورًا"
+              )}
               className={cn(
-                "flex h-11 shrink-0 items-center gap-3 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                "flex h-11 shrink-0 items-center gap-3 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-60",
                 pageHidden
                   ? "border-line bg-base text-secondary hover:border-accent hover:text-primary"
                   : "border-success/20 bg-success/10 text-success hover:bg-success/15"
@@ -264,7 +327,9 @@ export default function CategoryPagesManager() {
               <button
                 type="button"
                 onClick={() => void handleSave()}
-                disabled={updatePage.isPending}
+                // `isPending` blocks a save that would overwrite the page with
+                // the empty defaults shown while it is still loading.
+                disabled={updatePage.isPending || isPending}
                 className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-accent px-5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-colors hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
               >
                 <SaveIcon className="h-4 w-4 shrink-0" />

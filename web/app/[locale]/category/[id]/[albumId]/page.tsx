@@ -35,6 +35,14 @@ export async function generateMetadata({
   const { id, albumId } = await params;
   if (!isKnownCategory(id)) return {};
 
+  /**
+   * A hidden category 404s its albums too, and metadata runs before that
+   * `notFound()` — so without this the not-found page was served carrying the
+   * album's real title.
+   */
+  const categoryPage = await getPublishedPageContent(`category-${id}`);
+  if (categoryPage?.content.pageHidden) return {};
+
   // Titles are already visible in listings, but the description is part of the
   // album's contents — so a gated album contributes its name and nothing else.
   const access = await fetchAlbumAccess(albumId);

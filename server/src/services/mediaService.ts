@@ -220,9 +220,8 @@ export const mediaService = {
     }
 
     try {
-      const original = await storageProvider.download(media.storageKey);
-
       if (media.type === "image") {
+        const original = await storageProvider.download(media.storageKey);
         const result = await processImage(original);
         const thumbnailKey = storageKeys.thumbnail(media.sessionId, media.id);
         const optimizedKey = storageKeys.optimized(media.sessionId, media.id);
@@ -241,7 +240,13 @@ export const mediaService = {
         return toDto(updated);
       }
 
-      const result = await processVideo(original);
+      /**
+       * Streamed rather than buffered: a video only needs to reach ffmpeg as a
+       * file on disk, so holding the whole object in memory first doubled the
+       * cost for nothing. At 1.8 GB that was 1.8 GB of heap per upload.
+       */
+      const videoStream = await storageProvider.downloadStream(media.storageKey);
+      const result = await processVideo(videoStream);
       const thumbnailKey = storageKeys.thumbnail(media.sessionId, media.id);
       await storageProvider.upload(thumbnailKey, result.thumbnailBuffer, "image/png");
 

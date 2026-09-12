@@ -30,6 +30,13 @@ const fileTypes = {
 
 const uploadStatuses = {
   uploading: { en: "Uploading", ar: "جاري الرفع" },
+  /**
+   * Bytes are all sent; storage has not acknowledged the object yet. Distinct
+   * from "Uploading" because the percentage stops moving here, and on a large
+   * file that pause is long enough to look like a stall.
+   */
+  storing: { en: "Saving to storage", ar: "جارٍ الحفظ في التخزين" },
+  finalizing: { en: "Finalizing", ar: "جارٍ الإنهاء" },
   queued: { en: "Queued", ar: "في الانتظار" },
   done: { en: "Completed", ar: "مكتمل" },
   error: { en: "Failed", ar: "فشل" }
@@ -125,7 +132,11 @@ export default function UploadsPage() {
                     ? { en: "Cancelled", ar: "Cancelled" }
                     : item.status === "queued"
                       ? uploadStatuses.queued
-                      : uploadStatuses.uploading,
+                      : item.status === "storing"
+                        ? uploadStatuses.storing
+                        : item.status === "confirming"
+                          ? uploadStatuses.finalizing
+                          : uploadStatuses.uploading,
             pending: item.status === "queued",
             error: item.error,
             canRetry: item.status === "error" || item.status === "cancelled",

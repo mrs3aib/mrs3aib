@@ -1,4 +1,5 @@
 import { useLanguage } from "@/i18n/languageContext";
+import { MAX_FILE_SIZE_GB } from "@/hooks/useMediaUpload";
 import type { RejectedUpload } from "@/hooks/useMediaUpload";
 
 const PREVIEW_LIMIT = 5;
@@ -55,7 +56,10 @@ export function SkippedUploadsNotice({
         ) : null}
         {bySize.length ? (
           <li>
-            {t(`${bySize.length} over the 2 GB limit`, `${bySize.length} تتجاوز حد 2 جيجابايت`)}
+            {t(
+              `${bySize.length} over the ${MAX_FILE_SIZE_GB} GB limit`,
+              `${bySize.length} تتجاوز حد ${MAX_FILE_SIZE_GB} جيجابايت`
+            )}
           </li>
         ) : null}
       </ul>

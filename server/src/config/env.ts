@@ -53,7 +53,20 @@ const envSchema = z.object({
   R2_ENDPOINT: z.string().min(1, "R2_ENDPOINT is required"),
   R2_BUCKET: z.string().min(1, "R2_BUCKET is required"),
   R2_ACCESS_KEY: z.string().min(1, "R2_ACCESS_KEY is required"),
-  R2_SECRET_KEY: z.string().min(1, "R2_SECRET_KEY is required")
+  R2_SECRET_KEY: z.string().min(1, "R2_SECRET_KEY is required"),
+
+  /**
+   * Seconds a presigned upload URL stays valid. The browser uploads straight to
+   * R2 in one request, so this must cover the whole transfer of the largest
+   * file an admin will send. Defaults to two hours when unset; the SigV4
+   * ceiling is seven days.
+   */
+  UPLOAD_URL_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(604800)
+    .optional()
 });
 
 const parsed = envSchema.safeParse(process.env);

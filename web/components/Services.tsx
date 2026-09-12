@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { categories } from "@/lib/data";
+import { getCmsCategories } from "@/lib/api";
+import { categories as fallbackCategories } from "@/lib/data";
 import SectionHeading from "./SectionHeading";
 import { FadeUp } from "./Reveal";
 import CategoryCarousel from "./CategoryCarousel";
@@ -8,9 +9,20 @@ import CategoryLink from "./CategoryLink";
 export default async function Services() {
   const t = await getTranslations("services");
   const tCategories = await getTranslations("categories");
+
+  /**
+   * Only categories the CMS still shows. Reading the hardcoded list here kept a
+   * hidden category's tile in this grid, and the link led to a page that 404s.
+   * Resolved rather than passed in so the section stays correct wherever it is
+   * rendered.
+   */
+  const categoryItems = await getCmsCategories(fallbackCategories, (id) =>
+    tCategories(id)
+  );
+  const categories = categoryItems.map((category) => category.id);
   const categoryLabels = Object.fromEntries(
-    categories.map((id) => [id, tCategories(id)])
-  ) as Record<(typeof categories)[number], string>;
+    categoryItems.map((category) => [category.id, category.label])
+  ) as Record<string, string>;
 
   return (
     <section id="services" className="border-y border-line bg-card/40 py-28 md:py-40">

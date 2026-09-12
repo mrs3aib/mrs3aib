@@ -332,6 +332,8 @@ export type CmsFooterText = {
   contactTitle?: string;
   location?: string;
   followTitle?: string;
+  /** Bottom copyright/rights notice. Supports a `{year}` placeholder. */
+  copyright?: string;
 };
 
 /** The text fields a locale must fill to count as fully translated. */
@@ -341,7 +343,8 @@ export const FOOTER_TEXT_FIELDS = [
   "quickLinks",
   "contactTitle",
   "location",
-  "followTitle"
+  "followTitle",
+  "copyright"
 ] as const satisfies readonly (keyof CmsFooterText)[];
 
 /**

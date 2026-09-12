@@ -504,7 +504,20 @@ export default function DashboardPage() {
           <div className="space-y-5">
             {recentSessions.length ? (
               recentSessions.map((session) => (
-                <div key={session.id} className="flex items-center gap-4">
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      `/cms/categories/${session.category}?tab=media&sessionId=${encodeURIComponent(session.id)}`
+                    )
+                  }
+                  aria-label={t(
+                    `Open media for ${session.title}`,
+                    `Open media for ${session.title}`
+                  )}
+                  className="flex w-full cursor-pointer items-center gap-4 rounded-md text-start outline-none transition-colors hover:bg-base focus-visible:ring-2 focus-visible:ring-accent"
+                >
                   <SessionCover
                     session={session}
                     className="h-16 w-24 shrink-0 shadow-inner"
@@ -522,7 +535,7 @@ export default function DashboardPage() {
                       )}
                     </p>
                   </div>
-                </div>
+                </button>
               ))
             ) : (
               <p className="text-sm text-secondary">

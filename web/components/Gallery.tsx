@@ -13,9 +13,14 @@ import { ChevronLeft, ChevronRight, CloseIcon } from "./icons";
 
 /** One image inside a tile's own session. */
 export type GalleryTilePhoto = {
+  /** Poster thumbnail. For a video this is the only thing an `img` can show. */
   url: string;
-  /** Full-size source, when the backend signed one; falls back to `url`. */
+  /**
+   * Full-size source. Used only for images: on a video this is the video file
+   * itself, which an `img` renders as an empty frame.
+   */
   sourceUrl?: string;
+  type: "image" | "video";
 };
 
 /** One resolved gallery tile, already localized by the server component. */
@@ -95,14 +100,53 @@ export default function Gallery({
   const activePhotos: GalleryTilePhoto[] = activeTile?.photos?.length
     ? activeTile.photos
     : activeTile
-      ? [{ url: activeTile.imageUrl }]
+      ? [{ url: activeTile.imageUrl, type: "image" as const }]
       : [];
   const photoTotal = activePhotos.length;
   const currentPhoto = activePhotos[Math.min(photoIndex, photoTotal - 1)];
 
+  /**
+   * The full-size source for the open image, once it has finished decoding.
+   *
+   * Opening a card used to fetch a ~300KB original while showing nothing, so
+   * the lightbox sat blank for as long as that took. The thumbnail is already
+   * in cache from the card itself, so it paints immediately and the original
+   * is layered over it only when it is ready to draw.
+   */
+  const [fullLoaded, setFullLoaded] = useState<string | null>(null);
+
+  /** Poster/thumbnail: always available, always instant. */
+  const previewSrc = currentPhoto?.url ?? "";
+  /**
+   * Only images have a larger original worth fetching — a video's `sourceUrl`
+   * is the .mp4 itself, which an img cannot render.
+   */
+  const fullSrc =
+    currentPhoto?.type === "image" && currentPhoto.sourceUrl
+      ? currentPhoto.sourceUrl
+      : null;
+
+  /**
+   * Warm the first image of a tile before it is opened.
+   *
+   * The card shows the album cover, but the lightbox opens on `photos[0]`,
+   * which is a different URL and therefore uncached — so the first frame had to
+   * be fetched on click. Pointing at the card is a strong enough signal to
+   * fetch it early, and a browser-cached hit costs nothing when it is not.
+   */
+  const prefetch = useCallback((tile: GalleryTile) => {
+    const first = tile.photos?.[0];
+    if (!first?.url || typeof window === "undefined") return;
+    const img = new window.Image();
+    img.src = first.url;
+  }, []);
+
   const open = useCallback((index: number) => {
     setActive(index);
     setPhotoIndex(0);
+    // Cleared so a reopened tile starts from its thumbnail rather than trusting
+    // a previous image's loaded flag.
+    setFullLoaded(null);
   }, []);
   const close = useCallback(() => setActive(null), []);
   const step = useCallback(
@@ -157,6 +201,11 @@ export default function Gallery({
               <button
                 type="button"
                 onClick={() => open(index)}
+                onMouseEnter={() => prefetch(item)}
+                onFocus={() => prefetch(item)}
+                // Touch has no hover; the press itself lands well before the
+                // click, so the fetch starts a beat earlier than it otherwise would.
+                onTouchStart={() => prefetch(item)}
                 className="group relative block min-h-52 w-full overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none"
               >
                 <Image
@@ -281,15 +330,42 @@ export default function Gallery({
               className="relative h-[78vh] w-[88vw] max-w-6xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <Image
-                src={currentPhoto?.sourceUrl || currentPhoto?.url || ""}
-                alt={activeTile?.title ?? t("title")}
-                fill
-                sizes="90vw"
-                className="object-contain"
-                // Backend URLs are signed and already sized; see `GalleryTile`.
-                unoptimized
-              />
+              {/* Thumbnail underneath: cached from the card, so it paints at
+                  once and the frame is never blank. Blurred only while the
+                  original is still arriving, so the upscale is not obvious. */}
+              {previewSrc ? (
+                <Image
+                  key={previewSrc}
+                  src={previewSrc}
+                  alt=""
+                  aria-hidden="true"
+                  fill
+                  sizes="90vw"
+                  className={`object-contain transition-[filter] duration-300 ${
+                    fullLoaded === fullSrc ? "blur-0" : "blur-sm"
+                  }`}
+                  // Backend URLs are signed and already sized; see `GalleryTile`.
+                  unoptimized
+                  priority
+                />
+              ) : null}
+
+              {/* The original, faded in once it can actually draw. */}
+              {fullSrc ? (
+                <Image
+                  key={fullSrc}
+                  src={fullSrc}
+                  alt={activeTile?.title ?? t("title")}
+                  fill
+                  sizes="90vw"
+                  onLoad={() => setFullLoaded(fullSrc)}
+                  className={`object-contain transition-opacity duration-300 ${
+                    fullLoaded === fullSrc ? "opacity-100" : "opacity-0"
+                  }`}
+                  unoptimized
+                  priority
+                />
+              ) : null}
             </motion.div>
 
             <div className="absolute bottom-8 start-1/2 -translate-x-1/2 text-center rtl:translate-x-1/2">

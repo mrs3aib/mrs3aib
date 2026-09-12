@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   BOOKING_WHATSAPP_URL,
-  categories,
   extraServiceKeys
 } from "@/lib/data";
 import { scrollToId } from "@/lib/scroll";
@@ -84,9 +83,17 @@ function WhatsappIcon({ className }: { className?: string }) {
  * the same links and contact details, so leaving the bar pinned there would
  * cover that content with a duplicate of itself.
  */
-export default function MobileTabBar() {
+export default function MobileTabBar({
+  categoryItems
+}: {
+  /**
+   * Categories the CMS still shows, resolved in the layout. The hardcoded list
+   * was used here before, so a category hidden in the CMS kept its tile and led
+   * visitors to a 404.
+   */
+  categoryItems: { id: string; label: string }[];
+}) {
   const t = useTranslations("mobileBar");
-  const tCategories = useTranslations("categories");
   // The service labels are the same strings the header dropdown uses.
   const tNav = useTranslations("nav");
   const pathname = usePathname();
@@ -237,17 +244,19 @@ export default function MobileTabBar() {
           >
             {openSheet === "categories" ? (
               <div className="grid grid-cols-4 gap-1">
-                {categories.map((id) => {
-                  const Icon = categoryIcons[id] ?? CameraIcon;
+                {categoryItems.map((category) => {
+                  const Icon =
+                    categoryIcons[category.id as keyof typeof categoryIcons] ??
+                    CameraIcon;
                   return (
                     <Link
-                      key={id}
-                      href={`/category/${id}`}
+                      key={category.id}
+                      href={`/category/${category.id}`}
                       className="flex flex-col items-center gap-2 rounded px-1 py-2.5 text-center transition-colors hover:bg-white/5 active:bg-white/10"
                     >
                       <Icon className="h-6 w-6 shrink-0 text-accent" />
                       <span className="text-[10px] leading-tight text-secondary">
-                        {tCategories(id)}
+                        {category.label}
                       </span>
                     </Link>
                   );

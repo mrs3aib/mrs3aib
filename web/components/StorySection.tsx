@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -63,19 +63,39 @@ export default function StorySection({
   ).slice(0, MAX_CHAPTERS);
   const chapterCount = chapters.length;
 
+  /**
+   * Whether to render the static stack instead of the pinned scrub.
+   *
+   * The pinned version shows one chapter at a time and relies on scroll to
+   * advance; with motion reduced there is nothing to advance it, and every
+   * chapter is absolutely positioned at the same spot, so they overlapped into
+   * unreadable text. The stack lays them out in normal flow instead.
+   *
+   * Starts false so the server and the first client render agree; the effect
+   * below flips it after mount.
+   */
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduceMotion(query.matches);
+
+    const onChange = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    // The static stack needs no timeline, and building one would pin the
+    // section to a scroll it never scrubs.
+    if (prefersReducedMotion) return;
 
     const ctx = gsap.context(() => {
       const images = gsap.utils.toArray<HTMLElement>(".story-image");
       const texts = gsap.utils.toArray<HTMLElement>(".story-text");
-
-      if (prefersReducedMotion) {
-        gsap.set([images[0], texts[0]], { autoAlpha: 1 });
-        return;
-      }
 
       gsap.set(images.slice(1), { autoAlpha: 0 });
       gsap.set(texts.slice(1), { autoAlpha: 0, y: 40 });
@@ -125,6 +145,62 @@ export default function StorySection({
   }, [chapterCount]);
 
 
+  const label = content?.label || t("label");
+  const title = content?.title || t("title");
+  const intro = content?.intro || t("intro");
+
+  /**
+   * Motion reduced: lay the chapters out in normal flow.
+   *
+   * The pinned version stacks every chapter at the same absolute position and
+   * reveals them by scroll. Without that scrub they all sit on top of each
+   * other inside a clipped, fixed-height box — the copy was there but unreadable
+   * and partly cut off. Here each chapter is its own block, so nothing overlaps
+   * and nothing is clipped.
+   */
+  if (reduceMotion) {
+    return (
+      <section className="relative bg-base px-6 py-20 md:px-10 md:py-28">
+        <div className="mx-auto max-w-7xl">
+          <p className="tracking-nav text-xs font-medium uppercase text-accent">
+            {label}
+          </p>
+          <h2 className="tracking-title font-display mt-4 text-3xl font-semibold text-primary sm:text-4xl md:text-6xl">
+            {title}
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm text-secondary">{intro}</p>
+
+          <div className="mt-10 space-y-10">
+            {chapters.map((chapter, index) => (
+              <article key={index} className="grid gap-5 md:grid-cols-2 md:items-center">
+                <div className="relative aspect-4/3 overflow-hidden rounded-md">
+                  <Image
+                    src={chapter.image}
+                    alt={chapter.title || title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover"
+                  />
+                </div>
+                <div>
+                  <p className="font-display text-sm font-medium text-accent">
+                    {chapter.number}
+                  </p>
+                  <h3 className="tracking-title font-display mt-2 text-2xl font-semibold text-primary md:text-4xl">
+                    {chapter.title}
+                  </h3>
+                  <p className="mt-4 text-base leading-relaxed text-secondary md:text-lg">
+                    {chapter.text}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative bg-base">
       <div
@@ -136,7 +212,7 @@ export default function StorySection({
           <div key={index} className="story-image absolute inset-0">
             <Image
               src={chapter.image}
-              alt={content?.title || t("title")}
+              alt={title}
               fill
               sizes="100vw"
               className="object-cover"
@@ -146,30 +222,35 @@ export default function StorySection({
         ))}
 
         {/* Fixed header of the story */}
-        <div className="absolute inset-x-0 top-0 z-10 mx-auto max-w-7xl px-6 pt-24 md:px-10 md:pt-28">
+        {/* Tighter top inset on phones: the header is anchored to the top and
+            the chapters to the bottom of a fixed-height box, so on a short
+            viewport the two ran into each other and the overlap was clipped. */}
+        <div className="absolute inset-x-0 top-0 z-10 mx-auto max-w-7xl px-6 pt-20 md:px-10 md:pt-28">
           <p className="tracking-nav text-xs font-medium uppercase text-accent">
-            {content?.label || t("label")}
+            {label}
           </p>
-          <h2 className="tracking-title font-display mt-4 text-4xl font-semibold text-primary md:text-6xl">
-            {content?.title || t("title")}
+          <h2 className="tracking-title font-display mt-3 text-3xl font-semibold text-primary sm:text-4xl md:mt-4 md:text-6xl">
+            {title}
           </h2>
-          <p className="mt-3 text-sm text-secondary">
-            {content?.intro || t("intro")}
+          <p className="mt-2 line-clamp-2 max-w-2xl text-sm text-secondary md:mt-3 md:line-clamp-none">
+            {intro}
           </p>
         </div>
 
         {/* Chapter texts */}
-        <div className="absolute inset-x-0 bottom-0 z-10 mx-auto max-w-7xl px-6 pb-16 md:px-10 md:pb-24">
+        <div className="absolute inset-x-0 bottom-0 z-10 mx-auto max-w-7xl px-6 pb-12 md:px-10 md:pb-24">
           <div className="relative min-h-44 max-w-xl">
             {chapters.map((chapter, index) => (
               <div key={index} className="story-text absolute inset-x-0 bottom-0">
                 <p className="font-display text-sm font-medium text-accent">
                   {chapter.number}
                 </p>
-                <h3 className="tracking-title font-display mt-2 text-2xl font-semibold text-primary md:text-4xl">
+                <h3 className="tracking-title font-display mt-2 text-xl font-semibold text-primary sm:text-2xl md:text-4xl">
                   {chapter.title}
                 </h3>
-                <p className="mt-4 text-base leading-relaxed text-secondary md:text-lg">
+                {/* Clamped on phones so a long chapter cannot grow past the
+                    fixed-height box and have its last lines cut off. */}
+                <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-secondary sm:line-clamp-none sm:text-base md:mt-4 md:text-lg">
                   {chapter.text}
                 </p>
               </div>

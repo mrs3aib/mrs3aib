@@ -11,7 +11,17 @@ import type { Readable } from "node:stream";
 import { env } from "@/config/env";
 import type { StorageProvider, StoredObject } from "./storageProvider";
 
-const DEFAULT_UPLOAD_URL_TTL_SECONDS = 15 * 60;
+/**
+ * How long a presigned upload URL stays valid.
+ *
+ * The browser PUTs the file straight to R2 in one request, so this has to cover
+ * the whole transfer, not just the moment it starts. At the previous 15 minutes
+ * a 1.3 GB video needed ~12 Mbps sustained upload to finish in time; anything
+ * slower died partway with a 403 that looked like a random failure rather than
+ * an expiry. Two hours covers a multi-gigabyte file on a slow domestic
+ * connection, and the URL still only permits writing one object key.
+ */
+const DEFAULT_UPLOAD_URL_TTL_SECONDS = env.UPLOAD_URL_TTL_SECONDS ?? 2 * 60 * 60;
 const DEFAULT_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 
 /** Multipart chunk size. The S3 minimum for a non-final part is 5 MiB. */

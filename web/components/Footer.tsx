@@ -270,6 +270,10 @@ export default function Footer({
   const phone = content?.phone || t("phone");
   const email = content?.email || t("email");
   const social = content?.social;
+  const copyright = (content?.copyright || t("copyright", { year })).replaceAll(
+    "{year}",
+    String(year)
+  );
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -396,7 +400,7 @@ export default function Footer({
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl justify-center px-6 py-5 text-center md:px-10">
           <p className="text-xs text-secondary">
-            {t("copyright", { year })}
+            {copyright}
           </p>
         </div>
       </div>

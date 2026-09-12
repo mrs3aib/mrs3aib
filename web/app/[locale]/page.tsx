@@ -71,6 +71,8 @@ export default async function HomePage({
       }))
   );
 
+  const visibleCategoryIds = new Set(categoryItems.map((category) => category.id));
+
   const galleryTiles = galleryAlbums.map(({ album, resolved }) => ({
     imageUrl: album.coverUrl as string,
     title: album.title,
@@ -80,13 +82,24 @@ export default async function HomePage({
     // A signed, already-sized backend URL — see `GalleryTile.signed`.
     signed: true,
     photos:
-      resolved?.photos.map((photo) => ({
-        url: photo.url,
-        ...(photo.sourceUrl ? { sourceUrl: photo.sourceUrl } : {})
-      })) ?? [],
+      resolved?.photos
+        // An item with no still of any kind would be a blank slide, so it is
+        // left out rather than shown as an empty frame.
+        .filter((photo) => photo.url)
+        .map((photo) => ({
+          url: photo.url,
+          type: photo.type,
+          ...(photo.sourceUrl ? { sourceUrl: photo.sourceUrl } : {})
+        })) ?? [],
     // Photos and videos together: the card is saying how much is in there.
     assetCount: album.photoCount + album.videoCount,
-    ...(album.category ? { href: `/category/${album.category}/${album.id}` } : {})
+    /**
+     * Only to a category the CMS still shows. An album in a hidden category has
+     * no reachable page, so linking to it would offer a button that 404s.
+     */
+    ...(album.category && visibleCategoryIds.has(album.category)
+      ? { href: `/category/${album.category}/${album.id}` }
+      : {})
   }));
 
   return (
