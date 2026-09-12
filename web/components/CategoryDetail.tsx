@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -15,8 +16,9 @@ import Button from "./Button";
 import CategoryLink from "./CategoryLink";
 import HeroMedia from "./HeroMedia";
 
+import AlbumPasswordModal from "./AlbumPasswordModal";
 import { FadeUp } from "./Reveal";
-import { ArrowRight, PlayIcon, CameraIcon, categoryIcons } from "./icons";
+import { ArrowRight, PlayIcon, CameraIcon, LockIcon, categoryIcons } from "./icons";
 
 export default function CategoryDetail({
   id,
@@ -34,6 +36,11 @@ export default function CategoryDetail({
   const t = useTranslations("categoryPages");
   const tc = useTranslations("categories");
   const ta = useTranslations("albums");
+  /**
+   * The locked album a visitor just tried to open. Holding the title too keeps
+   * the modal's heading correct without looking the album up again.
+   */
+  const [locked, setLocked] = useState<{ id: string; title: string } | null>(null);
   const knownId = (categories as readonly string[]).includes(id)
     ? (id as CategoryId)
     : null;
@@ -149,6 +156,16 @@ export default function CategoryDetail({
                 <FadeUp key={album.id} delay={(index % 3) * 0.08}>
                   <Link
                     href={`/category/${id}/${album.id}`}
+                    // A locked album asks for its password here rather than on
+                    // a page the visitor would only be turned away from.
+                    onClick={
+                      album.requiresPassword
+                        ? (e) => {
+                            e.preventDefault();
+                            setLocked({ id: album.id, title: albumTitle });
+                          }
+                        : undefined
+                    }
                     className="group relative block aspect-16/10 w-full cursor-pointer overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none sm:aspect-4/3"
                   >
                     <Image
@@ -161,6 +178,18 @@ export default function CategoryDetail({
                     />
                     <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/25 to-black/95 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-focus-visible:opacity-80" />
                     <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-focus-visible:bg-accent/10" />
+
+                    {/* Says the album is gated before the click, so the prompt
+                        is expected rather than a surprise. */}
+                    {album.requiresPassword ? (
+                      <span
+                        title={ta("locked")}
+                        className="absolute end-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/60 text-accent backdrop-blur-sm"
+                      >
+                        <LockIcon className="h-4 w-4" />
+                        <span className="sr-only">{ta("locked")}</span>
+                      </span>
+                    ) : null}
                     
 
                     <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-14 transition-all duration-700 sm:translate-y-4 sm:px-5 sm:pb-5 sm:pt-16 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-active:translate-y-0 sm:group-active:opacity-100 sm:group-focus-visible:translate-y-0 sm:group-focus-visible:opacity-100">
@@ -197,6 +226,16 @@ export default function CategoryDetail({
           ))}
         </div>
       </section>
+
+      {locked ? (
+        <AlbumPasswordModal
+          category={id as CategoryId}
+          albumId={locked.id}
+          title={locked.title}
+          categoryLabel={fallbackLabel}
+          onClose={() => setLocked(null)}
+        />
+      ) : null}
     </>
   );
 }

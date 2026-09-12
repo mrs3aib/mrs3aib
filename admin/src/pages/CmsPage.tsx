@@ -809,6 +809,7 @@ function HeroEditor({ page }: { page: HeroPage }) {
               value={sections.story ?? {}}
               onChange={(next) => updateSection("story", next)}
               locale={locale}
+              pageKey={page.pageKey}
             />
           </SectionCard>
 

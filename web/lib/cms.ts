@@ -113,8 +113,24 @@ export type HomepageCmsContent = {
     label?: string;
     title?: string;
     intro?: string;
+    /**
+     * Legacy three-image composition, kept so content saved before images
+     * moved onto chapters still renders. New edits write `chapters[].image`;
+     * this is only read when a chapter has no image of its own.
+     */
     images?: string[];
-    chapters?: { number?: string; title?: string; text?: string }[];
+    /**
+     * Shared per-chapter fields: the image and the chapter number are the same
+     * whatever language the reader has chosen. Chapter prose lives in
+     * `chaptersText`, keyed by locale, so AR and EN can differ.
+     *
+     * `title`/`text` here are legacy — content authored before chapter prose
+     * was split by locale. They seed `chaptersText.en` and are read as the
+     * fallback until the chapter is edited.
+     */
+    chapters?: { number?: string; title?: string; text?: string; image?: string }[];
+    /** Per-locale chapter prose, positionally matched to `chapters`. */
+    chaptersText?: Localized<{ title?: string; text?: string }[]>;
     text?: Localized<{ label?: string; title?: string; intro?: string }>;
   };
   process?: {
@@ -247,6 +263,32 @@ export function localizeContent(
   const next: Record<string, unknown> = { ...content };
   for (const key of Object.keys(TRANSLATABLE_FIELDS) as TranslatableSection[]) {
     if (next[key]) next[key] = sectionTextFor(next[key] as object, key, locale);
+  }
+
+  /**
+   * Story chapters are the one repeater whose entries hold prose, so unlike the
+   * other arrays they are split by locale. Merge the locale's chapter text onto
+   * the shared entries, falling back to English and then to the legacy shared
+   * fields, so a half-translated story still renders.
+   */
+  const story = next.story as HomepageCmsContent["story"];
+  if (story?.chapters?.length) {
+    const translated = story.chaptersText?.[locale as CmsLocale] ?? [];
+    const fallback = story.chaptersText?.en ?? [];
+    next.story = {
+      ...story,
+      chapters: story.chapters.map((chapter, index) => ({
+        ...chapter,
+        title:
+          translated[index]?.title?.trim() ||
+          fallback[index]?.title?.trim() ||
+          chapter.title,
+        text:
+          translated[index]?.text?.trim() ||
+          fallback[index]?.text?.trim() ||
+          chapter.text
+      }))
+    };
   }
 
   return next as HomepageCmsContent;

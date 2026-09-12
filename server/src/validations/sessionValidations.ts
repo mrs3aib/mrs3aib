@@ -66,3 +66,31 @@ export const assignClientsSchema = z.object({
     clientIds: z.array(z.string().min(1))
   })
 });
+
+/** Route params for the session cover upload and removal endpoints. */
+export const sessionCoverParamSchema = z.object({
+  params: z.object({ sessionId: z.string().min(1) })
+});
+
+/**
+ * An externally hosted cover image.
+ *
+ * The scheme is restricted to http(s): the value is rendered straight into an
+ * `img src`, where a `javascript:` or `data:` URL would be script injection
+ * rather than a picture.
+ */
+export const setSessionCoverUrlSchema = z.object({
+  params: z.object({ sessionId: z.string().min(1) }),
+  body: z.object({
+    url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2048)
+      .url()
+      .refine(
+        (value) => /^https?:\/\//i.test(value),
+        "Cover URL must start with http:// or https://"
+      )
+  })
+});

@@ -206,7 +206,8 @@
     "copied": "Copied",
     "downloadQr": "Download QR",
     "empty": "Nothing to show here yet.",
-    "playVideo": "Play video"
+    "playVideo": "Play video",
+    "locked": "Password protected"
   },
   "categoryPages": {
     "backToHome": "Back to home",
@@ -339,6 +340,7 @@
     "title": "The gallery",
     "subtitle": "A rotating selection from recent commissions and personal work.",
     "view": "View Project",
+    "assets": "{count, plural, =1 {# item} other {# items}}",
     "more": "View more",
     "less": "Show less",
     "close": "Close",
@@ -476,6 +478,7 @@
     "submit": "View album",
     "checking": "Checking…",
     "wrong": "That password is not correct.",
-    "error": "Something went wrong. Please try again."
+    "error": "Something went wrong. Please try again.",
+    "close": "Close"
   }
 }

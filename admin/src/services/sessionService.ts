@@ -57,3 +57,49 @@ export async function assignClientsToSession(
 ): Promise<void> {
   await apiClient.post(`/admin/sessions/${sessionId}/clients`, { clientIds });
 }
+
+/**
+ * Upload a cover image for this session's gallery cards.
+ *
+ * Independent of the album's media: the home and category galleries show this
+ * rather than a frame of whatever the album contains.
+ */
+export async function uploadSessionCover(
+  sessionId: string,
+  file: File
+): Promise<PhotoSession> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const { data } = await apiClient.post<PhotoSession>(
+    `/admin/sessions/${sessionId}/cover`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+}
+
+/**
+ * Point this session's cover at an externally hosted image.
+ *
+ * The counterpart to uploading, for a cover that already lives somewhere else
+ * and is to hand only as a link. Replaces any uploaded file.
+ */
+export async function setSessionCoverUrl(
+  sessionId: string,
+  url: string
+): Promise<PhotoSession> {
+  const { data } = await apiClient.put<PhotoSession>(
+    `/admin/sessions/${sessionId}/cover`,
+    { url }
+  );
+  return data;
+}
+
+/** Remove the session's own cover, reverting to the pinned or automatic one. */
+export async function removeSessionCover(sessionId: string): Promise<PhotoSession> {
+  const { data } = await apiClient.delete<PhotoSession>(
+    `/admin/sessions/${sessionId}/cover`
+  );
+  return data;
+}

@@ -15,6 +15,7 @@ import Contact from "@/components/Contact";
 import {
   getCmsCategories,
   getPublishedPageContent,
+  resolveAlbumById,
   resolvePickedSessions
 } from "@/lib/api";
 import { localizeContent, type HideableSection } from "@/lib/cms";
@@ -51,26 +52,47 @@ export default async function HomePage({
   // component, and the session lookup needs the server-side API client. This
   // one genuinely depends on `cms`, so it cannot join the batch above.
   const galleryPicks = await resolvePickedSessions(cms?.gallery?.sessionIds ?? []);
-  const galleryTiles = galleryPicks
-    // A session whose cover has not been generated yet would render a broken
-    // tile, so it is dropped rather than shown empty.
-    .filter((album) => album.coverUrl)
-    .map((album) => ({
-      imageUrl: album.coverUrl as string,
-      title: album.title,
-      // Categories carry a translation, so label the tile in the reader's
-      // language rather than echoing the raw category id.
-      category: tCategories(album.category),
-      // A signed, already-sized backend URL — see `GalleryTile.signed`.
-      signed: true
-    }));
-console.log("hi")
+  /**
+   * Each picked session's own media, so opening a tile browses that project
+   * rather than paging between unrelated covers. The listing endpoint omits
+   * media, so this is one resolve per tile — bounded by the picker's own
+   * ceiling, and cached alongside the rest of the page.
+   */
+  const galleryAlbums = await Promise.all(
+    galleryPicks
+      // A session whose cover has not been generated yet would render a broken
+      // tile, so it is dropped rather than shown empty.
+      .filter((album) => album.coverUrl)
+      .map(async (album) => ({
+        album,
+        // Null for an album behind the gallery password: the backend serves no
+        // media without it, and the tile falls back to showing its cover.
+        resolved: album.category ? await resolveAlbumById(album.category, album.id) : null
+      }))
+  );
+
+  const galleryTiles = galleryAlbums.map(({ album, resolved }) => ({
+    imageUrl: album.coverUrl as string,
+    title: album.title,
+    // Categories carry a translation, so label the tile in the reader's
+    // language rather than echoing the raw category id.
+    category: tCategories(album.category),
+    // A signed, already-sized backend URL — see `GalleryTile.signed`.
+    signed: true,
+    photos:
+      resolved?.photos.map((photo) => ({
+        url: photo.url,
+        ...(photo.sourceUrl ? { sourceUrl: photo.sourceUrl } : {})
+      })) ?? [],
+    // Photos and videos together: the card is saying how much is in there.
+    assetCount: album.photoCount + album.videoCount,
+    ...(album.category ? { href: `/category/${album.category}/${album.id}` } : {})
+  }));
+
   return (
     <>
       <Hero content={cms?.hero} categoryItems={categoryItems} />
-      {shows("latestWeddings") ? (
-        <LatestWeddings content={cms?.latestWeddings} />
-      ) : null}
+      {shows("latestWeddings") ? <LatestWeddings content={cms?.latestWeddings} /> : null}
       {shows("gallery") ? (
         <Gallery content={cms?.gallery} pickedItems={galleryTiles} />
       ) : null}

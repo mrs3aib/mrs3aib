@@ -8,7 +8,15 @@ import { galleryItems, galleryUrl } from "@/lib/data";
 import type { HomepageCmsContent } from "@/lib/cms";
 import { startScroll, stopScroll } from "@/lib/scroll";
 import { FadeUp } from "./Reveal";
+import { Link } from "@/i18n/navigation";
 import { ChevronLeft, ChevronRight, CloseIcon } from "./icons";
+
+/** One image inside a tile's own session. */
+export type GalleryTilePhoto = {
+  url: string;
+  /** Full-size source, when the backend signed one; falls back to `url`. */
+  sourceUrl?: string;
+};
 
 /** One resolved gallery tile, already localized by the server component. */
 export type GalleryTile = {
@@ -21,6 +29,17 @@ export type GalleryTile = {
    * adds a proxy hop and a cache that outlives the signature.
    */
   signed?: boolean;
+  /**
+   * That session's own images, so opening a tile browses the project rather
+   * than paging between unrelated covers. Empty for a manually typed CMS item,
+   * a placeholder, or an album behind the gallery password — all of which fall
+   * back to showing the cover alone.
+   */
+  photos?: GalleryTilePhoto[];
+  /** Everything in the session, photos and videos, for the count on the card. */
+  assetCount?: number;
+  /** Canonical album route, for the "View project" button in the lightbox. */
+  href?: string;
 };
 
 export default function Gallery({
@@ -42,33 +61,58 @@ export default function Gallery({
   const cmsItems = content?.items?.filter((item) => item.imageUrl) ?? [];
   const hasPicked = (pickedItems?.length ?? 0) > 0;
   const hasCmsItems = cmsItems.length > 0;
-  const renderItems = hasPicked
+  const renderItems: GalleryTile[] = hasPicked
     ? (pickedItems as GalleryTile[])
     : hasCmsItems
-    ? cmsItems.map((item) => ({
-        imageUrl: item.imageUrl,
-        title: item.title || content?.title || t("title"),
-        category: item.category || "",
-        // CMS asset URLs are served by the backend, not generated on demand.
-        signed: true
-      }))
-    : galleryItems.map((item) => ({
-        imageUrl: galleryUrl(item),
-        title: tp(`items.${item.projectId}.title`),
-        category: tp(`items.${item.projectId}.category`),
-        signed: false
-      }));
+      ? cmsItems.map((item) => ({
+          imageUrl: item.imageUrl,
+          title: item.title || content?.title || t("title"),
+          category: item.category || "",
+          // CMS asset URLs are served by the backend, not generated on demand.
+          signed: true
+        }))
+      : galleryItems.map((item) => ({
+          imageUrl: galleryUrl(item),
+          title: tp(`items.${item.projectId}.title`),
+          category: tp(`items.${item.projectId}.category`),
+          signed: false
+        }));
   const totalItems = renderItems.length;
   const visibleItems = showAll ? renderItems : renderItems.slice(0, 4);
 
+  /**
+   * Which image of the open tile is showing. Opening a tile starts at its
+   * first image; the arrows then move within that session rather than jumping
+   * to the next card, so a visitor browses one project at a time.
+   */
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  const activeTile = active === null ? undefined : renderItems[active];
+  /**
+   * A tile with no loaded photos — a manual CMS item, a placeholder, or an
+   * album behind the gallery password — still opens, showing its cover alone.
+   */
+  const activePhotos: GalleryTilePhoto[] = activeTile?.photos?.length
+    ? activeTile.photos
+    : activeTile
+      ? [{ url: activeTile.imageUrl }]
+      : [];
+  const photoTotal = activePhotos.length;
+  const currentPhoto = activePhotos[Math.min(photoIndex, photoTotal - 1)];
+
+  const open = useCallback((index: number) => {
+    setActive(index);
+    setPhotoIndex(0);
+  }, []);
   const close = useCallback(() => setActive(null), []);
-  const step = useCallback((delta: number) => {
-    setActive((current) =>
-      current === null
-        ? null
-        : (current + delta + totalItems) % totalItems
-    );
-  }, [totalItems]);
+  const step = useCallback(
+    (delta: number) => {
+      setPhotoIndex((current) =>
+        photoTotal === 0 ? 0 : (current + delta + photoTotal) % photoTotal
+      );
+    },
+    [photoTotal]
+  );
 
   useEffect(() => {
     if (active === null) {
@@ -112,7 +156,7 @@ export default function Gallery({
             <FadeUp key={`${item.imageUrl}-${index}`} delay={(index % 4) * 0.08}>
               <button
                 type="button"
-                onClick={() => setActive(index)}
+                onClick={() => open(index)}
                 className="group relative block min-h-52 w-full overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none"
               >
                 <Image
@@ -133,9 +177,14 @@ export default function Gallery({
                   {item.category ? (
                     <p className="mt-2 text-xs text-primary/80">{item.category}</p>
                   ) : null}
-                  <span className="touch-reveal mt-3 inline-block translate-y-2 border-b border-accent pb-0.5 text-xs text-accent opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100 group-active:translate-y-0 group-active:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                    {t("view")}
-                  </span>
+                  {/* The count stands in for the old "View project" link: it
+                      says what opening the card gets you, which the lightbox's
+                      own button then acts on. */}
+                  {item.assetCount ? (
+                    <span className="touch-reveal mt-3 inline-block translate-y-2 border-b border-accent pb-0.5 text-xs text-accent opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100 group-active:translate-y-0 group-active:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                      {t("assets", { count: item.assetCount })}
+                    </span>
+                  ) : null}
                 </div>
               </button>
             </FadeUp>
@@ -179,36 +228,53 @@ export default function Gallery({
 
             <span className="tracking-nav absolute start-6 top-8 text-xs text-secondary">
               {t("counter", {
-                current: active + 1,
-                total: totalItems
+                current: Math.min(photoIndex, photoTotal - 1) + 1,
+                total: photoTotal
               })}
             </span>
 
-            <button
-              type="button"
-              aria-label={t("prev")}
-              onClick={(e) => {
-                e.stopPropagation();
-                step(-1);
-              }}
-              className="absolute start-4 z-10 flex h-12 w-12 items-center justify-center rounded border border-white/15 text-secondary transition-colors hover:border-white hover:text-primary md:start-8"
-            >
-              <ChevronLeft />
-            </button>
-            <button
-              type="button"
-              aria-label={t("next")}
-              onClick={(e) => {
-                e.stopPropagation();
-                step(1);
-              }}
-              className="absolute end-4 z-10 flex h-12 w-12 items-center justify-center rounded border border-white/15 text-secondary transition-colors hover:border-white hover:text-primary md:end-8"
-            >
-              <ChevronRight />
-            </button>
+            {/* Takes the visitor from browsing this project to its own page. */}
+            {activeTile?.href ? (
+              <Link
+                href={activeTile.href}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute start-1/2 top-6 z-10 -translate-x-1/2 rounded border border-accent/60 bg-black/50 px-5 py-2 text-xs font-medium text-accent backdrop-blur-md transition-colors hover:border-accent hover:bg-accent hover:text-base rtl:translate-x-1/2"
+              >
+                {t("view")}
+              </Link>
+            ) : null}
+
+            {photoTotal > 1 ? (
+              <>
+                <button
+                  type="button"
+                  aria-label={t("prev")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    step(-1);
+                  }}
+                  className="absolute start-4 z-10 flex h-12 w-12 items-center justify-center rounded border border-white/15 text-secondary transition-colors hover:border-white hover:text-primary md:start-8"
+                >
+                  <ChevronLeft />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("next")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    step(1);
+                  }}
+                  className="absolute end-4 z-10 flex h-12 w-12 items-center justify-center rounded border border-white/15 text-secondary transition-colors hover:border-white hover:text-primary md:end-8"
+                >
+                  <ChevronRight />
+                </button>
+              </>
+            ) : null}
 
             <motion.div
-              key={active}
+              // Keyed by both so moving within a session animates the same way
+              // as opening a different one.
+              key={`${active}-${photoIndex}`}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -216,23 +282,22 @@ export default function Gallery({
               onClick={(e) => e.stopPropagation()}
             >
               <Image
-                src={
-                  renderItems[active]?.imageUrl ?? renderItems[0]?.imageUrl
-                }
-                alt={renderItems[active]?.title ?? t("title")}
+                src={currentPhoto?.sourceUrl || currentPhoto?.url || ""}
+                alt={activeTile?.title ?? t("title")}
                 fill
                 sizes="90vw"
                 className="object-contain"
-                unoptimized={renderItems[active]?.signed}
+                // Backend URLs are signed and already sized; see `GalleryTile`.
+                unoptimized
               />
             </motion.div>
 
             <div className="absolute bottom-8 start-1/2 -translate-x-1/2 text-center rtl:translate-x-1/2">
               <p className="tracking-nav text-[10px] uppercase text-accent">
-                {renderItems[active]?.category ?? ""}
+                {activeTile?.category ?? ""}
               </p>
               <p className="font-display mt-1 text-sm font-medium text-primary">
-                {renderItems[active]?.title ?? t("title")}
+                {activeTile?.title ?? t("title")}
               </p>
             </div>
           </motion.div>

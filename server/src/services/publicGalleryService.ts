@@ -47,6 +47,15 @@ type ListedSession = {
   description: string | null;
   /** Media id the admin pinned as the cover, if any. */
   coverImage: string | null;
+  /** Storage key of a cover uploaded for this session, if any. */
+  coverStorageKey: string | null;
+  /** Externally hosted cover, pasted rather than uploaded, if any. */
+  coverImageExternalUrl: string | null;
+  /**
+   * Password settings, joined by the listing query. Only presence is used; the
+   * hash is narrowed to a boolean here and never travels further.
+   */
+  gallerySettings: { passwordProtected: boolean; passwordHash: string | null } | null;
   /** Ready media for this session, already filtered by the query. */
   media: CoverCandidate[];
   /** Ready *image* count, computed by the database. */
@@ -56,15 +65,19 @@ type ListedSession = {
 /**
  * Whether this session's contents are behind the gallery password.
  *
- * Both halves must hold: the admin marked the album `protected` *and* a
- * password is actually set. A `protected` album with no password would
- * otherwise be permanently unopenable, since there would be nothing to match.
+ * A set password gates the album on its own. This previously also required
+ * `visibility === "protected"`, but nothing keeps the two in step: the admin's
+ * "Password protect gallery" toggle writes the gallery settings and never
+ * touches `visibility`, so every album given a password through that switch
+ * stayed fully open — the password was collected, hashed, and then ignored.
+ *
+ * `visibility` still decides how an album is *reached*: `private` keeps it out
+ * of listings. What gates its contents is whether a password exists.
  */
 async function isPasswordGated(
   sessionId: string,
-  visibility: SessionVisibility
+  _visibility: SessionVisibility
 ): Promise<boolean> {
-  if (visibility !== "protected") return false;
   const settings = await gallerySettingsRepository.findBySessionId(sessionId);
   return Boolean(settings?.passwordProtected && settings.passwordHash);
 }
@@ -93,6 +106,18 @@ async function assertPublicDownloadsAllowed(sessionId: string): Promise<void> {
  */
 async function toAlbumSummary(session: ListedSession, videoCount: number) {
   const ready = session.media;
+  /**
+   * A cover set for this session wins outright — it exists so the card need not
+   * be a frame of the album's own media, and it is always a still, so the card
+   * renders as an image rather than a player. Only when none is set do the
+   * pinned item and the automatic pick apply.
+   */
+  const chosenCoverUrl = session.coverStorageKey
+    ? await storageProvider.getDownloadUrl(session.coverStorageKey)
+    : // A pasted URL is someone else's file: served exactly as given, never
+      // signed. Upload wins when both are somehow set.
+      session.coverImageExternalUrl;
+
   // The admin's pinned cover wins, and it may be a video. Only when nothing is
   // pinned (or the pinned item was since deleted) does the automatic pick apply.
   const pinned = session.coverImage
@@ -118,10 +143,20 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
       : Promise.resolve(null)
   ]);
 
+  /**
+   * Whether opening this album will ask for a password. Public on purpose: the
+   * card uses it to prompt in place rather than sending a visitor to a page
+   * that only turns them away. It says a password is needed, never what it is.
+   */
+  const requiresPassword = Boolean(
+    session.gallerySettings?.passwordProtected && session.gallerySettings.passwordHash
+  );
+
   return {
     id: session.id,
     slug: session.slug,
     title: session.title,
+    requiresPassword,
     category: session.category,
     eventDate: session.eventDate.toISOString(),
     location: session.location,
@@ -135,16 +170,24 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
      */
     coverImage: cover?.id ?? null,
     // A linked video's still is public on YouTube's CDN; ours must be signed.
-    coverUrl,
-    /** "video" tells the site to render a player rather than a still. */
-    coverType: cover?.type ?? null,
+    coverUrl: chosenCoverUrl ?? coverUrl,
+    /**
+     * "video" tells the site to render a player rather than a still. A cover
+     * set for the session is always a still, so it forces "image" — otherwise a
+     * card whose album happens to pin a video would show a play button over a
+     * picture that cannot play.
+     */
+    coverType: chosenCoverUrl ? "image" : (cover?.type ?? null),
     /**
      * Playable source for a video cover. `coverUrl` stays the poster frame, so
      * the site has something to show before playback starts. A linked video has
      * no such file — the card falls back to showing its still, and the video
      * itself plays from the embed inside the album.
+     *
+     * Suppressed entirely when the session has its own cover: the card shows
+     * that still, not a frame of any video, so there is nothing to play.
      */
-    coverVideoUrl
+    coverVideoUrl: chosenCoverUrl ? null : coverVideoUrl
   };
 }
 

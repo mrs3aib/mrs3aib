@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { sessionService } from "@/services/sessionService";
+import { ValidationError } from "@/types/errors";
 import type { SessionSort } from "@/repositories/sessionRepository";
 import type { SessionCategory, SessionStatus } from "@prisma/client";
 
@@ -49,5 +50,30 @@ export const sessionController = {
     const { clientIds } = req.body as { clientIds: string[] };
     await sessionService.assignClients(sessionId, clientIds);
     res.status(200).json({ message: "Clients assigned" });
+  },
+
+  async uploadCover(req: Request, res: Response): Promise<void> {
+    if (!req.file) {
+      throw new ValidationError("A cover image file is required");
+    }
+    const session = await sessionService.uploadCover(
+      req.params.sessionId as string,
+      req.file
+    );
+    res.status(200).json(session);
+  },
+
+  async setCoverUrl(req: Request, res: Response): Promise<void> {
+    const { url } = req.body as { url: string };
+    const session = await sessionService.setCoverUrl(
+      req.params.sessionId as string,
+      url
+    );
+    res.status(200).json(session);
+  },
+
+  async removeCover(req: Request, res: Response): Promise<void> {
+    const session = await sessionService.removeCover(req.params.sessionId as string);
+    res.status(200).json(session);
   }
 };

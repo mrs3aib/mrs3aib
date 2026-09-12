@@ -240,40 +240,30 @@ html.lenis body {
   );
 }
 
-.marquee-track {
-  animation: marquee-scroll 28s linear infinite;
+/*
+ * The strip is scrolled by script rather than animated, so a finger can drag it
+ * and a press can pause it. These rules only make that scroller invisible:
+ * the movement lives in `ClientsMarquee`.
+ */
+.marquee-scroller {
+  /* Momentum scrolling on iOS, and a chrome-free strip everywhere. */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* A horizontal drag scrolls the strip; a vertical one still scrolls the page. */
+  touch-action: pan-x pan-y;
+  /* Nothing to select when the drag is meant to move the strip. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.marquee-viewport:hover .marquee-track {
-  animation-play-state: paused;
+.marquee-scroller::-webkit-scrollbar {
+  display: none;
 }
 
-@keyframes marquee-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-html[dir="rtl"] .marquee-track {
-  animation-name: marquee-scroll-rtl;
-}
-
-@keyframes marquee-scroll-rtl {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee-track {
-    animation: none;
-  }
+.marquee-scroller:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 4px;
 }
 
 /* Emblem top-to-bottom reveal loop, used by the branded route-loading indicator */

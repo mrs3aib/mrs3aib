@@ -12,6 +12,13 @@ gsap.registerPlugin(ScrollTrigger);
 
 const chapterKeys = ["one", "two", "three"] as const;
 
+/**
+ * The section pins the viewport and scrubs through chapters, so each one adds
+ * scroll distance. A ceiling keeps an over-enthusiastic edit from turning the
+ * story into an endless pinned scroll.
+ */
+const MAX_CHAPTERS = 6;
+
 export default function StorySection({
   content
 }: {
@@ -24,6 +31,37 @@ export default function StorySection({
   // React tries to remove <section> from a parent GSAP already
   // replaced, throwing "removeChild: node is not a child of this node".
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Chapters drive the section: each one is a panel of copy over its own
+   * background image. A chapter with no image of its own falls back to the
+   * legacy `images` list by position, then to the built-in visuals, so content
+   * saved before images moved onto chapters still renders.
+   */
+  const cmsChapters = content?.chapters?.filter(
+    (chapter) => chapter.number || chapter.title || chapter.text || chapter.image
+  );
+  const legacyImages = content?.images?.filter(Boolean) ?? [];
+
+  const chapters = (
+    cmsChapters?.length
+      ? cmsChapters.map((chapter, index) => ({
+          number: chapter.number || "",
+          title: chapter.title || "",
+          text: chapter.text || "",
+          image:
+            chapter.image ||
+            legacyImages[index] ||
+            storyImages[index % storyImages.length]
+        }))
+      : chapterKeys.map((key, index) => ({
+          number: t(`chapters.${key}.number`),
+          title: t(`chapters.${key}.title`),
+          text: t(`chapters.${key}.text`),
+          image: legacyImages[index] || storyImages[index % storyImages.length]
+        }))
+  ).slice(0, MAX_CHAPTERS);
+  const chapterCount = chapters.length;
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
@@ -47,7 +85,9 @@ export default function StorySection({
         scrollTrigger: {
           trigger: wrapperRef.current,
           start: "top top",
-          end: "+=250%",
+          // Scroll distance grows with the chapter count so each chapter gets
+          // roughly the same amount of scrub, whatever the CMS holds.
+          end: `+=${Math.max(1, chapterCount - 1) * 125}%`,
           scrub: 0.8,
           pin: true,
           anticipatePin: 1
@@ -64,7 +104,7 @@ export default function StorySection({
         );
       });
 
-      chapterKeys.forEach((_, i) => {
+      texts.forEach((_, i) => {
         if (i === 0) return;
         const at = i * 1.1;
         tl.to(texts[i - 1], { autoAlpha: 0, y: -40, duration: 0.4 }, at);
@@ -80,15 +120,10 @@ export default function StorySection({
     }, wrapperRef);
 
     return () => ctx.revert();
-  }, []);
+    // Rebuilt when the chapter count changes: the timeline's steps and pin
+    // distance are both derived from it.
+  }, [chapterCount]);
 
-  const images = content?.images?.filter(Boolean).slice(0, 3);
-  const renderedImages = images?.length === 3 ? images : storyImages;
-  const chapters = chapterKeys.map((key, index) => ({
-    number: content?.chapters?.[index]?.number || t(`chapters.${key}.number`),
-    title: content?.chapters?.[index]?.title || t(`chapters.${key}.title`),
-    text: content?.chapters?.[index]?.text || t(`chapters.${key}.text`)
-  }));
 
   return (
     <section className="relative bg-base">
@@ -97,16 +132,16 @@ export default function StorySection({
         className="relative z-10 h-svh w-full overflow-hidden bg-base"
       >
         {/* Image layers */}
-        {renderedImages.map((src) => (
-          <div key={src} className="story-image absolute inset-0">
+        {chapters.map((chapter, index) => (
+          <div key={index} className="story-image absolute inset-0">
             <Image
-              src={src}
+              src={chapter.image}
               alt={content?.title || t("title")}
               fill
               sizes="100vw"
               className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-base via-base/40 to-base/30" />
+            <div className="absolute inset-0 bg-linear-to-t from-base via-base/40 to-base/30" />
           </div>
         ))}
 
@@ -118,7 +153,7 @@ export default function StorySection({
           <h2 className="tracking-title font-display mt-4 text-4xl font-semibold text-primary md:text-6xl">
             {content?.title || t("title")}
           </h2>
-          <p className="mt-3 text-sm text-secondary md:text-base">
+          <p className="mt-3 text-sm text-secondary">
             {content?.intro || t("intro")}
           </p>
         </div>

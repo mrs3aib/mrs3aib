@@ -1,11 +1,12 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { unlockAlbum, type ResolvedAlbum } from "@/lib/api";
 import type { CategoryId } from "@/lib/data";
 import AlbumView from "./AlbumView";
+import { UNLOCK_HANDOFF_KEY, type UnlockHandoff } from "./AlbumPasswordModal";
 
 /**
  * Password wall for a `protected` album.
@@ -36,6 +37,46 @@ export default function AlbumPasswordGate({
   const [album, setAlbum] = useState<ResolvedAlbum | null>(null);
   const [error, setError] = useState<"wrong" | "error" | null>(null);
   const [pending, setPending] = useState(false);
+  /**
+   * True until the handoff below has been checked, so the form is not shown for
+   * a frame to someone who already passed the modal on the listing page.
+   */
+  const [checkingHandoff, setCheckingHandoff] = useState(true);
+
+  /**
+   * Accept a password already verified by the listing's modal.
+   *
+   * Read once and removed immediately: the value is a credential, and leaving
+   * it in storage would unlock this album on a later visit without asking —
+   * exactly what this component's "a reload asks again" rule rules out.
+   */
+  useEffect(() => {
+    let handoff: UnlockHandoff | null = null;
+    try {
+      const raw = sessionStorage.getItem(UNLOCK_HANDOFF_KEY);
+      sessionStorage.removeItem(UNLOCK_HANDOFF_KEY);
+      if (raw) handoff = JSON.parse(raw) as UnlockHandoff;
+    } catch {
+      // Blocked storage or malformed value: fall through to asking normally.
+    }
+
+    if (handoff?.albumId !== albumId || !handoff.password) {
+      setCheckingHandoff(false);
+      return;
+    }
+
+    let cancelled = false;
+    void unlockAlbum(category, albumId, handoff.password).then((result) => {
+      if (cancelled) return;
+      // A failure here just shows the form; the visitor types it again.
+      if (result.ok) setAlbum(result.album);
+      setCheckingHandoff(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [albumId, category]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -55,6 +96,12 @@ export default function AlbumPasswordGate({
     // the same input rather than making the visitor type it again.
     if (result.reason === "wrong") setPassword("");
   };
+
+  /**
+   * Nothing is rendered while the handoff is being redeemed: showing the
+   * password form first would flash a prompt at someone who just answered it.
+   */
+  if (checkingHandoff) return null;
 
   if (album) {
     return (
