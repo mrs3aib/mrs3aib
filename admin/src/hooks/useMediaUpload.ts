@@ -7,7 +7,19 @@ import { queryKeys } from "@/services/queryKeys";
 import { useLanguage } from "@/i18n/languageContext";
 
 const ACCEPTED_MIME_PREFIXES = ["image/", "video/"];
-const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB, first line of defense only
+/**
+ * Ceiling for a single upload, checked before anything is queued.
+ *
+ * Set to R2's own limit for a single PUT, which is what the browser performs —
+ * past this the request fails at storage no matter what we allow here. The
+ * previous 2 GB predated processing being streamed, when the server loaded the
+ * whole file into a Buffer and Node's ~2 GB ceiling made larger files
+ * impossible; that constraint is gone.
+ */
+export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 * 1024; // 5GB — R2 single-PUT limit
+
+/** The cap in whole gigabytes, for user-facing copy that must not drift from it. */
+export const MAX_FILE_SIZE_GB = MAX_FILE_SIZE_BYTES / (1024 * 1024 * 1024);
 const uploadControllers = new Map<string, AbortController>();
 
 /**
@@ -109,7 +121,17 @@ export function useMediaUpload(sessionId: string) {
             const progress = event.total
               ? Math.round((event.loaded / event.total) * 100)
               : 0;
-            updateItem(item.id, { progress });
+            /**
+             * 100% here means the browser has flushed the last byte, not that
+             * R2 has the object — the `await` below is still pending while the
+             * upload is received and verified. On a multi-gigabyte file that
+             * gap runs to minutes, so it gets its own status instead of leaving
+             * a full bar under "Uploading…" looking stalled.
+             */
+            updateItem(item.id, {
+              progress,
+              ...(progress >= 100 ? { status: "storing" as const } : {})
+            });
           }
         });
 

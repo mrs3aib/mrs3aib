@@ -274,6 +274,12 @@ export function SessionUploader({
                     <div
                       className={`h-full rounded-full transition-[width] ${
                         item.status === "error" ? "bg-danger" : "bg-accent"
+                      } ${
+                        // A full, static bar reads as finished. Pulsing while
+                        // storage verifies the file shows work is still ongoing.
+                        item.status === "storing" || item.status === "confirming"
+                          ? "animate-pulse"
+                          : ""
                       }`}
                       style={{ width: `${item.progress}%` }}
                     />
@@ -287,7 +293,14 @@ export function SessionUploader({
                           ? t("Queued", "في الانتظار")
                           : item.status === "cancelled"
                             ? t("Cancelled", "أُلغي")
-                            : `${item.progress}%`}
+                            : // Past 100% the percentage stops moving while
+                              // storage verifies the file, so these two say what
+                              // is happening instead of showing a frozen "100%".
+                              item.status === "storing"
+                              ? t("Saving…", "جارٍ الحفظ…")
+                              : item.status === "confirming"
+                                ? t("Finalizing…", "جارٍ الإنهاء…")
+                                : `${item.progress}%`}
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     {canRetry ? (

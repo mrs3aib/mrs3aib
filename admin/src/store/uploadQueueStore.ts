@@ -4,6 +4,13 @@ export type UploadItemStatus =
   | "queued"
   | "requesting"
   | "uploading"
+  /**
+   * Every byte has left the browser, but R2 has not acknowledged the object
+   * yet. On a large file that wait is long enough to look like a stall, so it
+   * is its own state rather than a progress bar sitting at 100% under
+   * "Uploading…".
+   */
+  | "storing"
   | "confirming"
   | "done"
   | "error"

@@ -5,12 +5,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  BOOKING_WHATSAPP_URL,
-  categories,
-  extraServiceKeys,
-  navLinks
-} from "@/lib/data";
+import { BOOKING_WHATSAPP_URL, extraServiceKeys, navLinks } from "@/lib/data";
 import { scrollToId, startScroll, stopScroll } from "@/lib/scroll";
 import { Link, usePathname } from "@/i18n/navigation";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -67,9 +62,17 @@ function MobileDropdown({
   );
 }
 
-export default function Navbar() {
+export default function Navbar({
+  categoryItems
+}: {
+  /**
+   * Categories the CMS still shows, resolved in the layout. Previously the
+   * hardcoded list was used here, so a category hidden in the CMS kept its menu
+   * entry and sent visitors to a 404.
+   */
+  categoryItems: { id: string; label: string }[];
+}) {
   const t = useTranslations("nav");
-  const tCategories = useTranslations("categories");
   const pathname = usePathname();
   const isHome = pathname === "/";
   const isCategoryPage = pathname.startsWith("/category/");
@@ -212,13 +215,13 @@ export default function Navbar() {
                   <ChevronDown />
                 </button>
                 <Dropdown>
-                  {categories.map((category) => (
+                  {categoryItems.map((category) => (
                     <Link
-                      key={category}
-                      href={`/category/${category}`}
+                      key={category.id}
+                      href={`/category/${category.id}`}
                       className="block rounded px-3 py-2 text-sm text-secondary transition-colors hover:bg-white/5 hover:text-primary"
                     >
-                      {tCategories(category)}
+                      {category.label}
                     </Link>
                   ))}
                 </Dropdown>
@@ -388,14 +391,14 @@ export default function Navbar() {
                 open={mobilePhotographyOpen}
                 onToggle={() => setMobilePhotographyOpen((open) => !open)}
               >
-                {categories.map((category) => (
+                {categoryItems.map((category) => (
                   <Link
-                    key={category}
-                    href={`/category/${category}`}
+                    key={category.id}
+                    href={`/category/${category.id}`}
                     onClick={() => setMenuOpen(false)}
                     className="block rounded-md px-2 py-2 text-sm text-secondary transition-colors hover:bg-white/[0.05] hover:text-accent"
                   >
-                    {tCategories(category)}
+                    {category.label}
                   </Link>
                 ))}
               </MobileDropdown>

@@ -29,6 +29,15 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale, id } = await params;
   const categoryPage = await getPageContentForRender(`category-${id}`);
+
+  /**
+   * A hidden category is a 404, so it must not lend the page its title.
+   * `generateMetadata` runs before the component's own `notFound()`, so without
+   * this the not-found page was served wearing the hidden category's title and
+   * description — which is how a hidden category still looked present.
+   */
+  if (categoryPage?.content.pageHidden) return {};
+
   // Resolve the locale first, or an Arabic page gets English metadata.
   const hero = sectionTextFor(categoryPage?.content.hero, "hero", locale);
   if (hero?.title) {

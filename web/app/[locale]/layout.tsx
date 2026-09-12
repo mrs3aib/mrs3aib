@@ -14,6 +14,8 @@ import FooterSection from "@/components/FooterSection";
 import MobileTabBar from "@/components/MobileTabBar";
 import { HideInPreview } from "@/components/CmsPreviewBridge";
 import RouteLoader from "@/components/RouteLoader";
+import { getCmsCategories } from "@/lib/api";
+import { categories as fallbackCategories } from "@/lib/data";
 import "../globals.css";
 
 const inter = Inter({
@@ -69,6 +71,16 @@ export default async function LocaleLayout({
   const messages = await getMessages();
   const dir = locale === "ar" ? "rtl" : "ltr";
 
+  /**
+   * Categories the CMS still shows, resolved once for everything chrome-level.
+   * The nav used the hardcoded list, so a category hidden in the CMS kept its
+   * menu entry and led visitors to a 404.
+   */
+  const tCategories = await getTranslations({ locale, namespace: "categories" });
+  const categoryItems = await getCmsCategories(fallbackCategories, (id) =>
+    tCategories(id)
+  );
+
   return (
     <html
       lang={locale}
@@ -84,14 +96,14 @@ export default async function LocaleLayout({
                 the narrow CMS preview panel they cover the content being
                 previewed. The footer stays — it is CMS-editable itself. */}
             <HideInPreview>
-              <Navbar />
+              <Navbar categoryItems={categoryItems} />
             </HideInPreview>
             {/* Bottom padding on phones only, so the fixed tab bar rests over
                 empty space rather than the last line of a section. */}
             <main className="pb-20 md:pb-0">{children}</main>
             <FooterSection />
             <HideInPreview>
-              <MobileTabBar />
+              <MobileTabBar categoryItems={categoryItems} />
             </HideInPreview>
           </SmoothScroll>
         </NextIntlClientProvider>

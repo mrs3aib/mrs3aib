@@ -19,6 +19,9 @@ export function UploadItemRow({
     queued: t("Queued", "في الانتظار"),
     requesting: t("Preparing…", "جارٍ التحضير…"),
     uploading: t("Uploading…", "جارٍ الرفع…"),
+    // Bytes are all sent; the wait is on storage acknowledging them. Named for
+    // what is happening so a long pause on a big file does not read as a stall.
+    storing: t("Saving to storage…", "جارٍ الحفظ في التخزين…"),
     confirming: t("Finalizing…", "جارٍ الإنهاء…"),
     done: t("Done", "تم"),
     error: t("Failed", "فشل")

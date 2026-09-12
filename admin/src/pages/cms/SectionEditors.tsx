@@ -856,6 +856,18 @@ export function FooterEditor({
         value={text.followTitle ?? ""}
         onChange={(e) => setText({ followTitle: e.target.value })}
       />
+      <TextField
+        label={tr(t("Copyright / rights notice", "حقوق النشر"))}
+        value={text.copyright ?? ""}
+        onChange={(e) => setText({ copyright: e.target.value })}
+        placeholder="All rights reserved © {year}"
+      />
+      <p className="-mt-2 text-xs text-secondary">
+        {t(
+          "Use {year} to display the current year automatically.",
+          "استخدم {year} لإظهار السنة الحالية تلقائياً."
+        )}
+      </p>
 
       <div className="rounded-md border border-line p-3">
         <span className="tracking-nav mb-3 block text-xs font-medium uppercase text-secondary">
