@@ -33,9 +33,14 @@ export type PhotoSession = {
 /**
  * How a published session is reached from the public site.
  *
+ * Listing and gating are separate: this decides how an album is *reached*, and
+ * the gallery password decides whether its contents open. A password is checked
+ * whenever one is set, on `private` and `protected` alike.
+ *
  * - `public` — listed on its category page, open to anyone.
- * - `private` — hidden from every listing; opens for anyone with the link.
- * - `protected` — listed, but its contents need the gallery password.
+ * - `private` — hidden from every listing; opens by link, behind the password
+ *   if one is set.
+ * - `protected` — listed, and its contents need the gallery password.
  */
 export type SessionVisibility = "public" | "private" | "protected";
 

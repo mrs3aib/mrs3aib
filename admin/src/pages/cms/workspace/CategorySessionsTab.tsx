@@ -16,6 +16,8 @@ import { useLanguage } from "@/i18n/languageContext";
 import type { SessionFormValues } from "@/services/sessionSchemas";
 import type { SessionCategory } from "@/types/category";
 import { SessionPasswordModal } from "@/components/SessionPasswordModal";
+import { SessionPasswordPromptDialog } from "@/components/SessionPasswordPromptDialog";
+import { useSessionPasswordFlow } from "@/hooks/useSessionPasswordFlow";
 import type {
   PhotoSession,
   SessionSort,
@@ -48,7 +50,6 @@ export function CategorySessionsTab({
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<SessionStatus | "">("");
-  const [passwordTarget, setPasswordTarget] = useState<PhotoSession | null>(null);
   const [sort, setSort] = useState<SessionSort>("newest");
   const [adding, setAdding] = useState(false);
   const [editingSession, setEditingSession] = useState<PhotoSession | null>(null);
@@ -69,6 +70,15 @@ export function CategorySessionsTab({
   });
 
   const updateSession = useUpdateSession();
+  /** Same flow as the sessions page, so the two cannot drift. */
+  const passwordFlow = useSessionPasswordFlow({
+    onSetVisibility: async (session, visibility) => {
+      await updateSession.mutateAsync({
+        id: session.id,
+        payload: { visibility, ...(session.isPublic ? {} : { isPublic: true }) }
+      });
+    }
+  });
   const archiveSession = useArchiveSession();
   const deleteSession = useDeleteSession();
 
@@ -167,6 +177,8 @@ export function CategorySessionsTab({
       id: session.id,
       payload: { visibility, ...(session.isPublic ? {} : { isPublic: true }) }
     });
+    // A gating visibility with no password set gates nothing, so offer one.
+    passwordFlow.afterVisibilityChange(session, visibility);
   };
 
   const restoreSession = async (session: PhotoSession) => {
@@ -330,7 +342,7 @@ export function CategorySessionsTab({
             }
             onSetPassword={(session) => {
               setMenuFor(null);
-              setPasswordTarget(session);
+              passwordFlow.beginSetPassword(session);
             }}
             onRestore={(session) => void restoreSession(session)}
             onArchive={beginArchive}
@@ -402,9 +414,17 @@ export function CategorySessionsTab({
         onCancel={() => setDeleteTarget(null)}
       />
 
+      <SessionPasswordPromptDialog
+        session={passwordFlow.prompt?.session ?? null}
+        kind={passwordFlow.prompt?.kind ?? null}
+        loading={passwordFlow.promptLoading}
+        onConfirm={() => void passwordFlow.confirmPrompt()}
+        onCancel={passwordFlow.cancelPrompt}
+      />
+
       <SessionPasswordModal
-        session={passwordTarget}
-        onClose={() => setPasswordTarget(null)}
+        session={passwordFlow.passwordTarget}
+        onClose={passwordFlow.closePasswordDialog}
       />
     </div>
   );

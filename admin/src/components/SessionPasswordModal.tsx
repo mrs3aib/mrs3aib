@@ -99,8 +99,8 @@ export function SessionPasswordModal({
                     "توجد كلمة مرور بالفعل. إدخال كلمة جديدة سيستبدلها."
                   )
                 : t(
-                    "Visitors will need this password to open the album. It only applies while the session's visibility is set to Password.",
-                    "سيحتاج الزوار إلى كلمة المرور هذه لفتح الألبوم. تسري فقط عندما تكون رؤية الجلسة مضبوطة على كلمة مرور."
+                    "Visitors will need this password to open the album. It applies as soon as it is set, on a Private or Protected session alike.",
+                    "سيحتاج الزوار إلى كلمة المرور هذه لفتح الألبوم. تسري بمجرد تعيينها، سواء كانت الجلسة خاصة أو محمية."
                   )}
             </p>
 
