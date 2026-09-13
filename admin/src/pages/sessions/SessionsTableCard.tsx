@@ -211,7 +211,7 @@ function SessionRow({
       tabIndex={0}
       aria-label={t(
         `Open media for ${session.title}`,
-        `Ø§ÙØªØ­ Ø§Ù„ÙˆØ³Ø§Ø¦Ø· Ù„Ø¬Ù„Ø³Ø© ${session.title}`
+        `افتح الوسائط لجلسة ${session.title}`
       )}
       onClick={() => onOpenMedia(session)}
       onKeyDown={(event) => {
@@ -313,8 +313,8 @@ function SessionRow({
               value: "private",
               label: t("Private", "خاص"),
               description: t(
-                "Not listed, shared by link only.",
-                "لا يظهر في القائمة، ويُشارك بالرابط فقط."
+                "Not listed. Opens by link, behind the password if one is set.",
+                "لا يظهر في القائمة. يُفتح بالرابط، وخلف كلمة المرور إن وُجدت."
               )
             },
             {
@@ -455,15 +455,15 @@ function SessionActionMenu({
           : t("Publish", "نشر")}
       </MenuItem>
       {/*
-        Offered only for the visibility it affects. On any other session the
-        password is stored but never checked, so the entry would suggest a
-        protection that is not in force.
+        Offered on every session. The password is checked whenever one is set —
+        `isPasswordGated` in `publicGalleryService` ignores `visibility` — so
+        hiding this entry only hid a control that would have worked. A session
+        whose visibility gates nothing is prompted to switch first, rather than
+        being quietly refused here.
       */}
-      {session.visibility === "protected" ? (
-        <MenuItem onClick={() => actions.onSetPassword(session)}>
-          {t("Set gallery password", "تعيين كلمة مرور المعرض")}
-        </MenuItem>
-      ) : null}
+      <MenuItem onClick={() => actions.onSetPassword(session)}>
+        {t("Set gallery password", "تعيين كلمة مرور المعرض")}
+      </MenuItem>
       {session.status === "archived" ? (
         <MenuItem onClick={() => actions.onRestore(session)}>
           {t("Restore to draft", "استعادة كمسودة")}

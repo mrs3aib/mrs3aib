@@ -19,12 +19,20 @@ datasource db {
 /// Where a session is in its lifecycle. Only `active` is ever shown publicly,
 /// and then only when `isPublic` is also set — the two are separate switches.
 /// How a published session is reached from the public site.
+/// How a published session is reached.
+///
+/// Listing and gating are separate concerns: this enum decides only whether an
+/// album appears in listings. Whether its contents open is decided by the
+/// gallery password — `isPasswordGated` checks that a password exists and does
+/// not consult this value, so a password gates a `private` album as surely as a
+/// `protected` one.
 enum SessionVisibility {
   /// Listed on category pages and openable by anyone.
   public
-  /// Hidden from every listing, but opens for anyone holding the direct link.
+  /// Hidden from every listing. Opens by direct link, behind the gallery
+  /// password when one is set.
   private
-  /// Listed like a public album, but its contents need the gallery password.
+  /// Listed like a public album, and its contents need the gallery password.
   protected
 }
 

@@ -19,6 +19,8 @@ import type {
   SessionVisibility
 } from "@/types/session";
 import { SessionPasswordModal } from "@/components/SessionPasswordModal";
+import { SessionPasswordPromptDialog } from "@/components/SessionPasswordPromptDialog";
+import { useSessionPasswordFlow } from "@/hooks/useSessionPasswordFlow";
 import { SessionFilters } from "./sessions/SessionFilters";
 import { SessionPageDialogs } from "./sessions/SessionPageDialogs";
 import { SessionsHeader } from "./sessions/SessionsHeader";
@@ -48,7 +50,6 @@ export default function SessionsPage() {
   const [editingSession, setEditingSession] = useState<PhotoSession | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<PhotoSession | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PhotoSession | null>(null);
-  const [passwordTarget, setPasswordTarget] = useState<PhotoSession | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
@@ -70,6 +71,19 @@ export default function SessionsPage() {
 
   const createSession = useCreateSession();
   const updateSession = useUpdateSession();
+  /**
+   * Declared before `changeVisibility` uses it: the flow needs a way to switch a
+   * session to `protected`, and that switch is the same mutation the dropdown
+   * makes, so it is handed the page's own handler rather than repeating it.
+   */
+  const passwordFlow = useSessionPasswordFlow({
+    onSetVisibility: async (session, visibility) => {
+      await updateSession.mutateAsync({
+        id: session.id,
+        payload: { visibility, ...(session.isPublic ? {} : { isPublic: true }) }
+      });
+    }
+  });
   const archiveSession = useArchiveSession();
   const deleteSession = useDeleteSession();
 
@@ -195,6 +209,8 @@ export default function SessionsPage() {
       id: session.id,
       payload: { visibility, ...(session.isPublic ? {} : { isPublic: true }) }
     });
+    // A gating visibility with no password set gates nothing, so offer one.
+    passwordFlow.afterVisibilityChange(session, visibility);
   };
 
   const restoreSession = async (session: PhotoSession) => {
@@ -276,7 +292,7 @@ export default function SessionsPage() {
             }
             onSetPassword={(session) => {
               setMenuFor(null);
-              setPasswordTarget(session);
+              passwordFlow.beginSetPassword(session);
             }}
             onRestore={(session) => void restoreSession(session)}
             onArchive={beginArchive}
@@ -318,9 +334,17 @@ export default function SessionsPage() {
         onDeleteCancel={() => setDeleteTarget(null)}
       />
 
+      <SessionPasswordPromptDialog
+        session={passwordFlow.prompt?.session ?? null}
+        kind={passwordFlow.prompt?.kind ?? null}
+        loading={passwordFlow.promptLoading}
+        onConfirm={() => void passwordFlow.confirmPrompt()}
+        onCancel={passwordFlow.cancelPrompt}
+      />
+
       <SessionPasswordModal
-        session={passwordTarget}
-        onClose={() => setPasswordTarget(null)}
+        session={passwordFlow.passwordTarget}
+        onClose={passwordFlow.closePasswordDialog}
       />
     </div>
   );
