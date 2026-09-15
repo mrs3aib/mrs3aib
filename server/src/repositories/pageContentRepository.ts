@@ -18,6 +18,20 @@ export const pageContentRepository = {
     });
   },
 
+  /**
+   * Published records for many keys at once.
+   *
+   * The site's category navigation needs one flag per category, which as
+   * single lookups was a request and a query each. Prisma resolves this as one
+   * `IN` — the row count is bounded by the caller's key list.
+   */
+  findPublishedByPageKeys(pageKeys: string[]): Promise<PageContent[]> {
+    if (pageKeys.length === 0) return Promise.resolve([]);
+    return prisma.pageContent.findMany({
+      where: { pageKey: { in: pageKeys }, published: true }
+    });
+  },
+
   list(): Promise<PageContent[]> {
     return prisma.pageContent.findMany({ orderBy: { updatedAt: "desc" } });
   },

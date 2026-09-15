@@ -45,6 +45,33 @@ export type HideableSection = (typeof HIDEABLE_SECTIONS)[number];
 /** How the Latest Weddings section chooses what to show. */
 export type LatestWeddingsMode = "auto" | "manual";
 
+/** How a story chapter background is cropped at each responsive breakpoint. */
+export type StoryImageFit = "cover" | "contain";
+export type StoryImagePosition =
+  | "center"
+  | "top"
+  | "bottom"
+  | "left"
+  | "right"
+  | "top left"
+  | "top right"
+  | "bottom left"
+  | "bottom right";
+
+export type StoryImagePresentation = {
+  mobileFit?: StoryImageFit;
+  mobilePosition?: StoryImagePosition;
+  desktopFit?: StoryImageFit;
+  desktopPosition?: StoryImagePosition;
+};
+
+export type StoryTextSize = "small" | "medium" | "large";
+
+export type StoryDescriptionTextStyle = {
+  mobileSize?: StoryTextSize;
+  desktopSize?: StoryTextSize;
+};
+
 /**
  * The category "Latest Weddings" draws from. Matches the `weddings` id in
  * lib/data.ts and the `SessionCategory` enum in the Prisma schema.
@@ -128,7 +155,14 @@ export type HomepageCmsContent = {
      * was split by locale. They seed `chaptersText.en` and are read as the
      * fallback until the chapter is edited.
      */
-    chapters?: { number?: string; title?: string; text?: string; image?: string }[];
+    chapters?: {
+      number?: string;
+      title?: string;
+      text?: string;
+      image?: string;
+      imagePresentation?: StoryImagePresentation;
+      descriptionTextStyle?: StoryDescriptionTextStyle;
+    }[];
     /** Per-locale chapter prose, positionally matched to `chapters`. */
     chaptersText?: Localized<{ title?: string; text?: string }[]>;
     text?: Localized<{ label?: string; title?: string; intro?: string }>;

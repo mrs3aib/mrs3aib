@@ -7,6 +7,7 @@
  * renders empty rather than erroring — and rather than substituting demo
  * albums, which on a live site advertised work the studio never did.
  */
+import { cache } from "react";
 import type { Album, CategoryId } from "./data";
 import type { CmsCategory, HomepageCmsContent, PageContentPayload } from "./cms";
 
@@ -111,11 +112,15 @@ export type GalleryPayload = {
   session: {
     id: string;
     title: string;
+    /** The session's real category, for callers that must verify one. */
+    category?: CategoryId;
     eventDate: string;
     location: string;
     description: string | null;
     /** Media id pinned as the cover, so the preview can open that exact item. */
     coverImage?: string | null;
+    /** A separately uploaded or external session cover, when the admin chose one. */
+    coverUrl?: string | null;
   };
   settings?: {
     allowDownloads?: boolean;
@@ -376,6 +381,11 @@ export async function resolveCategoryAlbums(
 export type AlbumAccess = {
   sessionId: string;
   title: string;
+  /**
+   * The category the session actually belongs to, so a route carrying a
+   * category in its path can reject a URL that names the wrong one.
+   */
+  category: CategoryId;
   requiresPassword: boolean;
 };
 
@@ -386,7 +396,7 @@ export type AlbumAccess = {
  * and that a password is needed, so the page can render the prompt without
  * ever having held the media.
  */
-export async function fetchAlbumAccess(
+async function fetchAlbumAccessUncached(
   albumId: string
 ): Promise<AlbumAccess | null> {
   return safeGet<AlbumAccess>(`/public/sessions/${albumId}/access`, {
@@ -396,6 +406,18 @@ export async function fetchAlbumAccess(
     interactive: true
   });
 }
+
+/**
+ * Memoized for the lifetime of one request.
+ *
+ * `generateMetadata` and the page body both need this, and rendering one album
+ * page called it twice. `policy: "never"` deliberately opts out of Next's
+ * fetch cache, so nothing else was collapsing those two calls — every view
+ * really did hit the backend twice. React's `cache` is request-scoped, so this
+ * dedupes within a render without ever holding a value across requests, which
+ * is exactly the distinction the "never" policy is protecting.
+ */
+export const fetchAlbumAccess = cache(fetchAlbumAccessUncached);
 
 /**
  * Exchange the gallery password for the album's contents.
@@ -439,19 +461,36 @@ export async function unlockAlbum(
  * longer served here: an id that matches nothing published is simply not found,
  * rather than opening a gallery of stock photography under the studio's name.
  */
-export async function resolveAlbumById(
+async function resolveAlbumByIdUncached(
   category: CategoryId,
-  albumId: string
+  albumId: string,
+  limit?: number
 ): Promise<ResolvedAlbum | null> {
-  const payload = await safeGet<GalleryPayload>(`/public/sessions/${albumId}`, {
-    // Every item's thumbnail and source URL is signed, so this expires with
-    // them rather than outliving them.
-    policy: "signed",
-    interactive: true
-  });
+  const query = limit ? `?limit=${limit}` : "";
+  const payload = await safeGet<GalleryPayload>(
+    `/public/sessions/${albumId}${query}`,
+    {
+      // Every item's thumbnail and source URL is signed, so this expires with
+      // them rather than outliving them.
+      policy: "signed",
+      interactive: true
+    }
+  );
 
   return payload ? albumFromPayload(category, albumId, payload) : null;
 }
+
+/**
+ * Memoized per request, like `fetchAlbumAccess` above.
+ *
+ * The signed-URL fetch underneath is cached by Next, but the payload mapping —
+ * which walks every media item — was still run twice per album page. On a
+ * session of several hundred items that is the expensive half.
+ *
+ * `limit` is part of the cache key, so the homepage's capped resolve and the
+ * album page's full one never serve each other a wrongly sized album.
+ */
+export const resolveAlbumById = cache(resolveAlbumByIdUncached);
 
 /**
  * Build the rendered album from a gallery payload.
@@ -475,7 +514,8 @@ export function albumFromPayload(
 
   // The item the cover shows — pinned if the admin chose one, otherwise the
   // same automatic pick the listing makes, so both views agree.
-  const coverKey = coverKeyFrom(payload, photos);
+  const sessionCoverUrl = payload.session.coverUrl ?? undefined;
+  const coverKey = sessionCoverUrl ? undefined : coverKeyFrom(payload, photos);
   const cover = photos.find((p) => p.key === coverKey);
 
   return {
@@ -497,11 +537,13 @@ export function albumFromPayload(
      * all. It used to fall back to a seeded stock image, which put a photo
      * the studio never took at the head of a real gallery.
      */
-    coverUrl: cover?.url ?? "",
-    ...(cover?.type === "video" ? { coverType: "video" as const } : {}),
+    coverUrl: sessionCoverUrl ?? cover?.url ?? "",
+    ...(cover?.type === "video" && !sessionCoverUrl
+      ? { coverType: "video" as const }
+      : {}),
     // Only a file we host can play inline; a linked video has no such URL and
     // plays from its embed in the lightbox instead.
-    ...(cover?.type === "video" && !cover.youTubeId && cover.sourceUrl
+    ...(cover?.type === "video" && !sessionCoverUrl && !cover.youTubeId && cover.sourceUrl
       ? { coverVideoUrl: cover.sourceUrl }
       : {}),
     ...(payload.settings?.watermarkPreviewImages && payload.settings.watermarkUrl
@@ -710,17 +752,27 @@ export async function getCmsCategories(
  * Remove categories whose own page is hidden in the CMS.
  *
  * The flag lives on each `category-<id>` record rather than the shared
- * `categories` list, so this costs one request per category — issued in
- * parallel, and each already cached by `safeGet`. A request that fails returns
- * null, which keeps the category visible: a flaky backend must not silently
- * empty the site's navigation.
+ * `categories` list. That used to mean one request per category — nine in
+ * total with the list itself, for every page that renders navigation, which is
+ * every page. A production build renders eighteen of them at once and the
+ * resulting burst was rejected by the API's rate limiter, so category pages
+ * were baked with placeholder content. One request now answers for all of
+ * them.
+ *
+ * A failure returns null and leaves every category visible: a flaky backend
+ * must not silently empty the site's navigation.
  */
 async function dropHiddenCategories(
   items: CmsCategory[]
 ): Promise<CmsCategory[]> {
-  const pages = await Promise.all(
-    items.map((item) => getPublishedPageContent(`category-${item.id}`))
-  );
+  if (items.length === 0) return items;
 
-  return items.filter((_, index) => !pages[index]?.content.pageHidden);
+  const keys = items.map((item) => `category-${item.id}`).join(",");
+  const flags = await safeGet<Record<string, boolean>>(
+    `/pages/hidden?keys=${encodeURIComponent(keys)}`,
+    { policy: "cms" }
+  );
+  if (!flags) return items;
+
+  return items.filter((item) => !flags[`category-${item.id}`]);
 }

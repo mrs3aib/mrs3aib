@@ -1,16 +1,29 @@
 import { prisma } from "@/config/prisma";
 import type { Media, MediaType, MediaProcessingStatus, Prisma } from "@prisma/client";
 
-export type MediaSort = "newest" | "oldest" | "largest" | "smallest" | "name";
+export type MediaSort =
+  | "newest"
+  | "oldest"
+  | "largest"
+  | "smallest"
+  | "name"
+  /** The order the admin picked the files in. */
+  | "picked";
 
 export type MediaWithSession = Media & { session: { title: string } };
 
-const ORDER_BY: Record<MediaSort, Prisma.MediaOrderByWithRelationInput> = {
-  newest: { createdAt: "desc" },
-  oldest: { createdAt: "asc" },
-  largest: { size: "desc" },
-  smallest: { size: "asc" },
-  name: { originalName: "asc" }
+/**
+ * `sortIndex` leads wherever the admin's chosen order is what matters, with
+ * `createdAt` breaking ties — rows predating the column all carry 0, so they
+ * fall back to exactly the order they had before.
+ */
+const ORDER_BY: Record<MediaSort, Prisma.MediaOrderByWithRelationInput[]> = {
+  newest: [{ createdAt: "desc" }],
+  oldest: [{ createdAt: "asc" }],
+  largest: [{ size: "desc" }],
+  smallest: [{ size: "asc" }],
+  name: [{ originalName: "asc" }],
+  picked: [{ sortIndex: "asc" }, { createdAt: "asc" }]
 };
 
 /** Shared filter shape so list/count/aggregate can never drift apart. */
@@ -45,7 +58,10 @@ export const mediaRepository = {
   },
 
   findAllForSession(sessionId: string): Promise<Media[]> {
-    return prisma.media.findMany({ where: { sessionId }, orderBy: { createdAt: "asc" } });
+    // The gallery shows a session's media in the order it was picked, which
+    // is what the admin arranged on disk — not the order the upload lanes
+    // happened to finish scheduling it in.
+    return prisma.media.findMany({ where: { sessionId }, orderBy: ORDER_BY.picked });
   },
 
   /** One session's copy of an external video, used to reject duplicate links. */

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { ResolvedAlbum } from "@/lib/api";
@@ -11,6 +10,7 @@ import {
 import { useInViewCenter } from "@/hooks/useInViewCenter";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { FadeUp } from "./Reveal";
+import ResilientImage from "./ResilientImage";
 
 function formatDate(value: string, locale: string): string | null {
   const date = new Date(value);
@@ -58,7 +58,7 @@ function AlbumCard({
       data-active={revealed ? "" : undefined}
       className="group relative block min-h-52 w-full overflow-hidden rounded-md border border-white/10 bg-black/60 text-start shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 data-active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none"
     >
-      <Image
+      <ResilientImage
         src={album.coverUrl}
         alt={title || fallbackTitle}
         fill

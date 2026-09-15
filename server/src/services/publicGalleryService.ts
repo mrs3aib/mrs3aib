@@ -126,7 +126,11 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
   const cover =
     pinned ??
     ready.find((m) => m.type === "image" && m.thumbnailKey) ??
-    ready.find((m) => m.thumbnailKey);
+    ready.find((m) => m.thumbnailKey) ??
+    // A ready upload normally has a thumbnail, but the original is still a
+    // valid cover if an older import has none. Never publish an empty `src`.
+    ready.find((m) => m.type === "image" && m.storageKey) ??
+    ready.find((m) => m.storageKey);
 
   // Both URLs are signed against the same provider and neither depends on the
   // other, so they are signed together rather than one after the next.
@@ -135,8 +139,8 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
       ? Promise.resolve(
           cover.externalId ? youTubeThumbnailUrl(cover.externalId) : null
         )
-      : cover?.thumbnailKey
-        ? storageProvider.getDownloadUrl(cover.thumbnailKey)
+      : cover?.thumbnailKey ?? cover?.storageKey
+        ? storageProvider.getDownloadUrl(cover.thumbnailKey ?? cover.storageKey!)
         : Promise.resolve(null),
     cover?.type === "video" && cover.storageKey
       ? storageProvider.getDownloadUrl(cover.storageKey)
@@ -210,7 +214,10 @@ const PUBLIC_SESSION_LIST_MAX = 60;
 export const publicGalleryService = {
   /** Album summaries for one category page. */
   async listByCategory(category: SessionCategory) {
-    const sessions = await sessionRepository.listPublicByCategory(category);
+    const sessions = await sessionRepository.listPublicByCategory(
+      category,
+      PUBLIC_SESSION_LIST_MAX
+    );
     return toAlbumSummaries(sessions);
   },
 
@@ -249,11 +256,22 @@ export const publicGalleryService = {
     return {
       sessionId,
       title: session.title,
+      /**
+       * The category this session really belongs to.
+       *
+       * The album route carries a category in its path but nothing verified it
+       * against the session, so any album rendered under any category id —
+       * mislabelled on screen and in its own share link. Returned here rather
+       * than only on the gallery payload because this call already runs first
+       * and costs nothing extra, so the page can reject a mismatched URL
+       * before fetching any media.
+       */
+      category: session.category,
       requiresPassword: await isPasswordGated(sessionId, session.visibility)
     };
   },
 
-  async getPublicGallery(sessionId: string, password?: string) {
+  async getPublicGallery(sessionId: string, password?: string, limit?: number) {
     // Only the published check is needed here — `getGallery` re-reads the
     // session and enforces expiry itself, so repeating either would cost two
     // extra round trips to a remote database for no added protection.
@@ -270,7 +288,7 @@ export const publicGalleryService = {
       }
     }
 
-    return galleryService.getGallery(sessionId);
+    return galleryService.getGallery(sessionId, limit);
   },
 
   /** Signed URL for one original file in a public session. */

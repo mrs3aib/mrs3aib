@@ -17,7 +17,19 @@ export const publicSessionListQuerySchema = z.object({
 });
 
 export const publicSessionParamSchema = z.object({
-  params: z.object({ sessionId: z.string().min(1) })
+  params: z.object({ sessionId: z.string().min(1) }),
+  /**
+   * Optional cap on how many media items come back.
+   *
+   * The homepage shows a few of a session's photos in a preview strip, not the
+   * whole album. Without this the server signed a URL for every item — two per
+   * item — before the caller threw all but a handful away, which on a session
+   * of several hundred photos was the bulk of the homepage's render time.
+   * Omitted by the album page, which genuinely needs everything.
+   */
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(200).optional()
+  })
 });
 
 export const publicMediaParamSchema = z.object({

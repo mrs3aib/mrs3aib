@@ -10,6 +10,7 @@ import { startScroll, stopScroll } from "@/lib/scroll";
 import { FadeUp } from "./Reveal";
 import { Link } from "@/i18n/navigation";
 import { ChevronLeft, ChevronRight, CloseIcon } from "./icons";
+import ResilientImage from "./ResilientImage";
 
 /** One image inside a tile's own session. */
 export type GalleryTilePhoto = {
@@ -208,7 +209,7 @@ export default function Gallery({
                 onTouchStart={() => prefetch(item)}
                 className="group relative block min-h-52 w-full overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none"
               >
-                <Image
+                <ResilientImage
                   src={item.imageUrl}
                   alt={item.title}
                   fill
@@ -334,7 +335,7 @@ export default function Gallery({
                   once and the frame is never blank. Blurred only while the
                   original is still arriving, so the upscale is not obvious. */}
               {previewSrc ? (
-                <Image
+                <ResilientImage
                   key={previewSrc}
                   src={previewSrc}
                   alt=""
@@ -344,6 +345,11 @@ export default function Gallery({
                   className={`object-contain transition-[filter] duration-300 ${
                     fullLoaded === fullSrc ? "blur-0" : "blur-sm"
                   }`}
+                  // The lightbox runs its own crossfade between this cached
+                  // thumbnail and the original above it; a skeleton would sit
+                  // over both and defeat the point of showing the thumbnail
+                  // instantly.
+                  showSkeleton={false}
                   // Backend URLs are signed and already sized; see `GalleryTile`.
                   unoptimized
                   priority
@@ -352,7 +358,7 @@ export default function Gallery({
 
               {/* The original, faded in once it can actually draw. */}
               {fullSrc ? (
-                <Image
+                <ResilientImage
                   key={fullSrc}
                   src={fullSrc}
                   alt={activeTile?.title ?? t("title")}
@@ -362,6 +368,9 @@ export default function Gallery({
                   className={`object-contain transition-opacity duration-300 ${
                     fullLoaded === fullSrc ? "opacity-100" : "opacity-0"
                   }`}
+                  // Deliberately transparent until loaded so the thumbnail
+                  // shows through — its own opacity is the transition here.
+                  showSkeleton={false}
                   unoptimized
                   priority
                 />

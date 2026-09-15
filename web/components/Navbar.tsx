@@ -12,6 +12,20 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import AuthModal from "./AuthModal";
 import { CloseIcon } from "./icons";
 
+/** Below this scroll depth the bar always stays visible. */
+const HIDE_AFTER_PX = 120;
+
+/** How close to the top edge the cursor must come to call the bar back. */
+const REVEAL_ZONE_PX = 80;
+
+/**
+ * How far down the cursor may drift before the bar tucks away again.
+ *
+ * Taller than the bar itself (h-24, 96px) so moving onto the revealed bar
+ * cannot dismiss the thing being reached for.
+ */
+const KEEP_OPEN_ZONE_PX = 140;
+
 type AuthUser = {
   name: string;
   phone: string;
@@ -77,6 +91,12 @@ export default function Navbar({
   const isHome = pathname === "/";
   const isCategoryPage = pathname.startsWith("/category/");
   const [scrolled, setScrolled] = useState(false);
+  /** True once the page has scrolled past where the bar sits. */
+  const [pastBar, setPastBar] = useState(false);
+  /** True while the cursor is at the top of the window, summoning the bar. */
+  const [pointerInTop, setPointerInTop] = useState(false);
+  /** True while keyboard focus is somewhere inside the bar. */
+  const [focusInside, setFocusInside] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -102,12 +122,79 @@ export default function Navbar({
     }
   }, []);
 
+  /**
+   * Past the fold the bar stays tucked away, whichever direction the page is
+   * moving. Scrolling back up deliberately does *not* bring it out — only the
+   * cursor reaching the top edge does, or the page returning to where the bar
+   * actually lives.
+   */
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 40);
+      setPastBar(y > HIDE_AFTER_PX);
+    };
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  /**
+   * Bring the bar back when the cursor reaches the top of the window.
+   *
+   * This is the only way to summon it while scrolled down, so the reveal has
+   * to survive the pointer then moving onto the bar itself: revealing sets
+   * `pointerInTop`, and it is only cleared once the cursor leaves a zone tall
+   * enough to contain the bar — otherwise the bar would slide out, take the
+   * cursor out of the 80px trigger band, and immediately hide again.
+   *
+   * `clientY` is viewport-relative, so this is the top edge of the window
+   * rather than of the document.
+   *
+   * Pointer events cover mouse, pen and touch. A touch has no hover, so on
+   * phones the bar is reached by scrolling back to the top of the page — which
+   * is the gesture people already use there.
+   */
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.clientY <= REVEAL_ZONE_PX) {
+        setPointerInTop(true);
+        return;
+      }
+      // Wider band on the way out than on the way in. With one boundary the
+      // revealed bar sits under the cursor, and the smallest movement below
+      // the line hides it again — a flicker at exactly the moment the visitor
+      // is reaching for it.
+      if (event.clientY > KEEP_OPEN_ZONE_PX) setPointerInTop(false);
+    };
+
+    // A cursor leaving through the top of the window stops producing moves, so
+    // without this the bar would stay out after the pointer has gone.
+    const onPointerLeave = () => setPointerInTop(false);
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    document.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerleave", onPointerLeave);
+    };
+  }, []);
+
+  /**
+   * Whether the bar is tucked away above the viewport.
+   *
+   * Derived rather than stored, so the inputs can never disagree — an earlier
+   * version kept `hidden` in state and every new reveal path had to remember
+   * to clear it.
+   *
+   * It shows when the page is still at the top, when the cursor is summoning
+   * it, when focus is inside it, or while something opened from it is on
+   * screen — a menu or modal dismissed back to a bar that was not there would
+   * leave the visitor with nowhere to return to.
+   */
+  const hidden =
+    pastBar && !pointerInTop && !focusInside && !menuOpen && !authOpen && !userMenuOpen;
 
   useEffect(() => {
     if (menuOpen || authOpen) stopScroll();
@@ -159,11 +246,26 @@ export default function Navbar({
 
   return (
     <>
+      {/*
+        The entrance animation runs once on mount; after that `y` is driven by
+        `hidden` so the two never fight over the same property. Framer keeps
+        animating the same value, which is why this slides rather than jumps.
+      */}
       <motion.header
         initial={{ y: -32, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
+        animate={{ y: hidden ? "-100%" : 0, opacity: 1 }}
+        transition={{ duration: hidden ? 0.35 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+        // Tabbing into the bar while it is tucked away would move focus to
+        // something the visitor cannot see; revealing on focus keeps the
+        // keyboard path in step with the pointer one, and releasing on blur
+        // lets it tuck away once focus moves on into the page.
+        onFocusCapture={() => setFocusInside(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setFocusInside(false);
+          }
+        }}
+        className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-500 ${
           scrolled
             ? "border-b border-line bg-base/70 backdrop-blur-xl"
             : "border-b border-transparent bg-transparent"

@@ -3,9 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Runtime queries.
-  url = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Migrations, which cannot run through a transaction pooler. Behind a pooled
   // host this must be the direct connection; on Railway, which fronts Postgres
   // with no pooler, it is the same URL as above. Required either way.
@@ -103,34 +103,34 @@ model Admin {
 }
 
 model PhotoSession {
-  id          String          @id @default(cuid())
-  title       String
-  slug        String          @unique
-  category    SessionCategory
+  id                    String            @id @default(cuid())
+  title                 String
+  slug                  String            @unique
+  category              SessionCategory
   /// Media id pinned as the cover. A fallback: used only when no cover image
   /// has been uploaded for this session.
-  coverImage  String?
+  coverImage            String?
   /// Storage key of a cover image uploaded for this session specifically.
   /// Wins over `coverImage` in gallery listings, so the card shown on the home
   /// and category galleries need not be a frame of the album's own media.
-  coverStorageKey String?
+  coverStorageKey       String?
   /// Externally hosted cover image, pasted rather than uploaded. Held apart
   /// from `coverStorageKey` because it is not ours: it is served as-is rather
   /// than signed, and must never be deleted from our storage.
   coverImageExternalUrl String?
-  eventDate   DateTime
-  location    String
-  description String?
-  status      SessionStatus   @default(draft)
+  eventDate             DateTime
+  location              String
+  description           String?
+  status                SessionStatus     @default(draft)
   /// Public gallery listings show only sessions the admin has published.
   ///
   /// Kept as the master publish switch: nothing unpublished is reachable at
   /// all. `visibility` then decides how a *published* session is reached.
-  isPublic    Boolean         @default(false)
+  isPublic              Boolean           @default(false)
   /// Listing and password behaviour for a published session. See the enum.
-  visibility  SessionVisibility @default(public)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  visibility            SessionVisibility @default(public)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   clients         Client[]
   media           Media[]
@@ -143,11 +143,11 @@ model PhotoSession {
 }
 
 model Client {
-  id   String @id @default(cuid())
-  name String
+  id           String   @id @default(cuid())
+  name         String
   /// Doubles as the login identifier — the client equivalent of an admin's
   /// email address, hence the unique constraint.
-  phone String @unique
+  phone        String   @unique
   /// bcrypt hash of the client's login password.
   ///
   /// Nullable only so the column could be added to a table of existing rows.
@@ -157,9 +157,9 @@ model Client {
   /// Null for a self-registered account that the admin has not yet attached to
   /// a session. Such an account can sign in but has no gallery to see, so the
   /// gallery routes report "no gallery yet" rather than failing.
-  sessionId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  sessionId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
   session       PhotoSession?     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
@@ -191,11 +191,22 @@ model Media {
   height           Int?
   duration         Float?
   processingStatus MediaProcessingStatus @default(processing)
+  /// Position of this file within the batch it was picked in, assigned by the
+  /// browser before anything is uploaded.
+  ///
+  /// `createdAt` records when a presign happened, which under parallel upload
+  /// lanes is the order files *finished being scheduled*, not the order the
+  /// admin selected them — a 700-photo folder lands visibly shuffled, and any
+  /// retry moves the retried files to the end. This keeps the picked order
+  /// independent of how the transfers raced.
+  sortIndex        Int                   @default(0)
   createdAt        DateTime              @default(now())
 
   session PhotoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  /// Serves the gallery's default ordering directly.
+  @@index([sessionId, sortIndex, createdAt])
   @@map("media")
 }
 

@@ -5,9 +5,10 @@ import { categories, type CategoryId } from "@/lib/data";
 import {
   fetchAlbumAccess,
   getCmsCategories,
-  getPublishedPageContent,
   resolveAlbumById
 } from "@/lib/api";
+import { getPageContentForRender } from "@/lib/cmsPreview";
+import { redirect } from "@/i18n/navigation";
 import AlbumView from "@/components/AlbumView";
 import AlbumPasswordGate from "@/components/AlbumPasswordGate";
 
@@ -40,20 +41,47 @@ export async function generateMetadata({
    * `notFound()` — so without this the not-found page was served carrying the
    * album's real title.
    */
-  const categoryPage = await getPublishedPageContent(`category-${id}`);
+  const categoryPage = await getPageContentForRender(`category-${id}`);
   if (categoryPage?.content.pageHidden) return {};
 
   // Titles are already visible in listings, but the description is part of the
   // album's contents — so a gated album contributes its name and nothing else.
   const access = await fetchAlbumAccess(albumId);
+  // An album reached under the wrong category renders a 404, which must not
+  // carry the album's real title — same reasoning as the hidden check above.
+  if (access && access.category !== id) return {};
   if (access?.requiresPassword) return { title: access.title };
 
   const album = await resolveAlbumById(id as CategoryId, albumId);
   if (!album?.title) return {};
 
+  const description = album.description ?? undefined;
+  const image = album.coverUrl || undefined;
+
   return {
     title: album.title,
-    description: album.description ?? undefined
+    description,
+    openGraph: {
+      title: album.title,
+      description,
+      type: "website",
+      ...(image
+        ? {
+            images: [
+              {
+                url: image,
+                alt: album.title
+              }
+            ]
+          }
+        : {})
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title: album.title,
+      description,
+      ...(image ? { images: [image] } : {})
+    }
   };
 }
 
@@ -75,7 +103,7 @@ export default async function AlbumPage({
    * `getCmsCategories` is itself several requests deep.
    */
   const [pageContent, access, categoryItems] = await Promise.all([
-    getPublishedPageContent(`category-${id}`),
+    getPageContentForRender(`category-${id}`),
     fetchAlbumAccess(albumId),
     getCmsCategories(categories, (categoryId) => tCategories(categoryId))
   ]);
@@ -84,6 +112,26 @@ export default async function AlbumPage({
   // way around the CMS flag the category page already honours.
   if (pageContent?.content.pageHidden) notFound();
   if (!access) notFound();
+
+  /**
+   * The category in the URL must be the album's own.
+   *
+   * Nothing verified this before: the access and gallery endpoints are keyed on
+   * session id alone, and `resolveAlbumById` takes the category as a label and
+   * stamps it onto the album. So every album rendered under all eight category
+   * paths — each returning 200, each showing the wrong category on screen, and
+   * each baking the wrong path into the share and QR link the visitor copies.
+   *
+   * Redirected rather than 404'd: these URLs have been live and shareable, so
+   * an already-circulated wrong link lands on the right page instead of a dead
+   * end, and search engines collapse the duplicates onto one canonical path.
+   */
+  if (access.category !== id) {
+    // The locale-aware `redirect`: `localePrefix` defaults to "always", so a
+    // bare next/navigation redirect would drop the prefix and bounce an
+    // English visitor onto the Arabic default.
+    redirect({ href: `/category/${access.category}/${albumId}`, locale });
+  }
 
   const categoryLabel =
     categoryItems.find((category) => category.id === id)?.label ??

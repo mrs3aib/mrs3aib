@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -15,6 +14,7 @@ import type { CmsHero } from "@/lib/cms";
 import Button from "./Button";
 import CategoryLink from "./CategoryLink";
 import HeroMedia from "./HeroMedia";
+import ResilientImage from "./ResilientImage";
 
 import AlbumPasswordModal from "./AlbumPasswordModal";
 import { FadeUp } from "./Reveal";
@@ -168,7 +168,7 @@ export default function CategoryDetail({
                     }
                     className="group relative block aspect-16/10 w-full cursor-pointer overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none sm:aspect-4/3"
                   >
-                    <Image
+                    <ResilientImage
                       src={album.coverUrl}
                       alt={albumTitle}
                       fill

@@ -6,7 +6,14 @@ import { useTranslations } from "next-intl";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { storyImages } from "@/lib/data";
-import type { HomepageCmsContent } from "@/lib/cms";
+import type {
+  HomepageCmsContent,
+  StoryImageFit,
+  StoryImagePosition,
+  StoryImagePresentation,
+  StoryTextSize,
+  StoryDescriptionTextStyle
+} from "@/lib/cms";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -18,6 +25,69 @@ const chapterKeys = ["one", "two", "three"] as const;
  * story into an endless pinned scroll.
  */
 const MAX_CHAPTERS = 6;
+
+const mobileFitClass: Record<StoryImageFit, string> = {
+  cover: "object-cover",
+  contain: "object-contain"
+};
+
+const desktopFitClass: Record<StoryImageFit, string> = {
+  cover: "md:object-cover",
+  contain: "md:object-contain"
+};
+
+const mobilePositionClass: Record<StoryImagePosition, string> = {
+  center: "object-center",
+  top: "object-top",
+  bottom: "object-bottom",
+  left: "object-left",
+  right: "object-right",
+  "top left": "object-left-top",
+  "top right": "object-right-top",
+  "bottom left": "object-left-bottom",
+  "bottom right": "object-right-bottom"
+};
+
+const desktopPositionClass: Record<StoryImagePosition, string> = {
+  center: "md:object-center",
+  top: "md:object-top",
+  bottom: "md:object-bottom",
+  left: "md:object-left",
+  right: "md:object-right",
+  "top left": "md:object-left-top",
+  "top right": "md:object-right-top",
+  "bottom left": "md:object-left-bottom",
+  "bottom right": "md:object-right-bottom"
+};
+
+function storyImageClass(presentation?: StoryImagePresentation) {
+  const settings = presentation ?? {};
+  return [
+    mobileFitClass[settings.mobileFit ?? "cover"],
+    mobilePositionClass[settings.mobilePosition ?? "center"],
+    desktopFitClass[settings.desktopFit ?? "cover"],
+    desktopPositionClass[settings.desktopPosition ?? "center"]
+  ].join(" ");
+}
+
+const mobileDescriptionClass: Record<StoryTextSize, string> = {
+  small: "text-xs",
+  medium: "text-sm",
+  large: "text-base"
+};
+
+const desktopDescriptionClass: Record<StoryTextSize, string> = {
+  small: "md:text-base",
+  medium: "md:text-lg",
+  large: "md:text-xl"
+};
+
+function storyDescriptionClass(style?: StoryDescriptionTextStyle) {
+  return [
+    mobileDescriptionClass[style?.mobileSize ?? "medium"],
+    desktopDescriptionClass[style?.desktopSize ?? "medium"]
+  ].join(" ");
+}
 
 export default function StorySection({
   content
@@ -52,13 +122,17 @@ export default function StorySection({
           image:
             chapter.image ||
             legacyImages[index] ||
-            storyImages[index % storyImages.length]
+            storyImages[index % storyImages.length],
+          imagePresentation: chapter.imagePresentation,
+          descriptionTextStyle: chapter.descriptionTextStyle
         }))
       : chapterKeys.map((key, index) => ({
           number: t(`chapters.${key}.number`),
           title: t(`chapters.${key}.title`),
           text: t(`chapters.${key}.text`),
-          image: legacyImages[index] || storyImages[index % storyImages.length]
+          image: legacyImages[index] || storyImages[index % storyImages.length],
+          imagePresentation: undefined,
+          descriptionTextStyle: undefined
         }))
   ).slice(0, MAX_CHAPTERS);
   const chapterCount = chapters.length;
@@ -173,13 +247,16 @@ export default function StorySection({
           <div className="mt-10 space-y-10">
             {chapters.map((chapter, index) => (
               <article key={index} className="grid gap-5 md:grid-cols-2 md:items-center">
-                <div className="relative aspect-4/3 overflow-hidden rounded-md">
+                {/* Taller on phones than the desktop 4:3, matching the
+                    portrait crop the pinned version shows and the shape the
+                    CMS asks admins to upload. */}
+                <div className="relative aspect-3/4 overflow-hidden rounded-md sm:aspect-4/3">
                   <Image
                     src={chapter.image}
                     alt={chapter.title || title}
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover"
+                    className={storyImageClass(chapter.imagePresentation)}
                   />
                 </div>
                 <div>
@@ -215,46 +292,105 @@ export default function StorySection({
               alt={title}
               fill
               sizes="100vw"
-              className="object-cover"
+              className={storyImageClass(chapter.imagePresentation)}
             />
-            <div className="absolute inset-0 bg-linear-to-t from-base via-base/40 to-base/30" />
+            {/*
+              Two scrims rather than one wash over the whole frame.
+              
+              A single top-to-bottom gradient had to be dark enough to carry
+              the chapter copy at the bottom, which meant it also dimmed the
+              middle of the photo where the subject usually sits. These darken
+              only the two bands that actually hold text — the header above and
+              the chapter below — and leave the centre of the image at full
+              strength. On phones the bands are taller, because the text
+              occupies proportionally more of a narrow screen.
+            */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-linear-to-b from-base via-base/70 to-transparent md:h-1/3" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-linear-to-t from-base via-base/75 to-transparent md:h-1/2" />
           </div>
         ))}
 
-        {/* Fixed header of the story */}
-        {/* Tighter top inset on phones: the header is anchored to the top and
-            the chapters to the bottom of a fixed-height box, so on a short
-            viewport the two ran into each other and the overlap was clipped. */}
-        <div className="absolute inset-x-0 top-0 z-10 mx-auto max-w-7xl px-6 pt-20 md:px-10 md:pt-28">
-          <p className="tracking-nav text-xs font-medium uppercase text-accent">
-            {label}
-          </p>
-          <h2 className="tracking-title font-display mt-3 text-3xl font-semibold text-primary sm:text-4xl md:mt-4 md:text-6xl">
-            {title}
-          </h2>
-          <p className="mt-2 line-clamp-2 max-w-2xl text-sm text-secondary md:mt-3 md:line-clamp-none">
-            {intro}
-          </p>
-        </div>
+        {/*
+          One column, two bands: header at the top, chapters at the bottom.
 
-        {/* Chapter texts */}
-        <div className="absolute inset-x-0 bottom-0 z-10 mx-auto max-w-7xl px-6 pb-12 md:px-10 md:pb-24">
-          <div className="relative min-h-44 max-w-xl">
-            {chapters.map((chapter, index) => (
-              <div key={index} className="story-text absolute inset-x-0 bottom-0">
-                <p className="font-display text-sm font-medium text-accent">
-                  {chapter.number}
-                </p>
-                <h3 className="tracking-title font-display mt-2 text-xl font-semibold text-primary sm:text-2xl md:text-4xl">
-                  {chapter.title}
-                </h3>
-                {/* Clamped on phones so a long chapter cannot grow past the
-                    fixed-height box and have its last lines cut off. */}
-                <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-secondary sm:line-clamp-none sm:text-base md:mt-4 md:text-lg">
-                  {chapter.text}
-                </p>
+          Both used to be absolutely positioned against the same fixed-height
+          box — header pinned to the top, chapters to the bottom — with nothing
+          between them to keep them apart. On a short phone the two simply
+          overlapped, and because the box clips, whatever collided was cut off
+          rather than pushed. The intro was `line-clamp-2` and the chapter text
+          `line-clamp-3` to paper over it, which truncated real content instead
+          of fixing the cause.
+
+          As a flex column the middle spacer absorbs whatever height is left
+          over, so the bands push apart instead of into each other and the
+          clamps are no longer needed. The gap also leaves the centre of the
+          photo — where the subject almost always is — clear of text.
+        */}
+        <div className="absolute inset-0 z-10 flex flex-col px-6 pt-24 pb-16 md:px-10 md:pt-28 md:pb-24">
+          <div className="mx-auto w-full max-w-7xl shrink-0">
+            <p className="tracking-nav text-xs font-medium uppercase text-accent">
+              {label}
+            </p>
+            <h2 className="tracking-title font-display mt-3 text-3xl font-semibold text-primary sm:text-4xl md:mt-4 md:text-6xl">
+              {title}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-secondary md:mt-3">
+              {intro}
+            </p>
+          </div>
+
+          {/* Takes the slack, keeping the photo's middle visible. */}
+          <div className="min-h-8 grow" />
+
+          {/*
+            The chapter band is sized by its tallest chapter, so a long chapter
+            is never clipped and a short one leaves no dead space — replacing
+            the fixed `min-h-44` that did neither.
+
+            Every chapter is absolutely positioned so they can cross-fade in
+            place. That leaves nothing in flow to give the band height, so a
+            hidden copy of all of them is stacked in normal flow purely as a
+            sizer: it is `invisible` (occupies space, draws nothing) rather
+            than `hidden`, and `aria-hidden` keeps the duplicate text out of
+            the accessibility tree. Sizing off chapter one alone would collapse
+            the band whenever a longer chapter faded in, pushing its last lines
+            off the bottom of the clipped box.
+          */}
+          <div className="mx-auto w-full max-w-7xl shrink-0">
+            <div className="relative max-w-xl">
+              <div aria-hidden="true" className="invisible grid">
+                {chapters.map((chapter, index) => (
+                  // Every sizer shares one grid cell, so the band ends up as
+                  // tall as the tallest chapter rather than all of them added
+                  // together.
+                  <div key={index} className="col-start-1 row-start-1">
+                    <p className="font-display text-sm font-medium text-accent">
+                      {chapter.number}
+                    </p>
+                    <h3 className="tracking-title font-display mt-2 text-xl font-semibold text-primary sm:text-2xl md:text-4xl">
+                      {chapter.title}
+                    </h3>
+                    <p className={`mt-3 leading-relaxed text-secondary ${storyDescriptionClass(chapter.descriptionTextStyle)} md:mt-4`}>
+                      {chapter.text}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
+
+              {chapters.map((chapter, index) => (
+                <div key={index} className="story-text absolute inset-x-0 bottom-0">
+                  <p className="font-display text-sm font-medium text-accent">
+                    {chapter.number}
+                  </p>
+                  <h3 className="tracking-title font-display mt-2 text-xl font-semibold text-primary sm:text-2xl md:text-4xl">
+                    {chapter.title}
+                  </h3>
+                  <p className={`mt-3 leading-relaxed text-secondary ${storyDescriptionClass(chapter.descriptionTextStyle)} md:mt-4`}>
+                    {chapter.text}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

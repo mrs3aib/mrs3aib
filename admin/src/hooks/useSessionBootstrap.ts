@@ -68,6 +68,14 @@ export function useSessionBootstrap(): {
             setOutcome("unreachable");
             return;
           }
+          // A timeout is not proof the request failed — it may have reached
+          // the server, rotated the cookie, and only lost the response. The
+          // store tells us: a token means some refresh did land, so the
+          // session is restored rather than retried with a spent cookie.
+          if (useAuthStore.getState().accessToken) {
+            setOutcome("restored");
+            return;
+          }
           await wait(RETRY_DELAY_MS * (attempt + 1));
         }
       }

@@ -59,6 +59,12 @@ export type PresignedUploadRequest = {
   fileName: string;
   mimeType: string;
   size: number;
+  /**
+   * Position of this file within the batch it was picked in, so the gallery
+   * can show the admin's order rather than whichever upload lane finished
+   * first. Optional: the server defaults it to 0.
+   */
+  sortIndex?: number;
 };
 
 export type PresignedUploadResponse = {

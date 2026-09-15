@@ -14,13 +14,24 @@ import Instagram from "@/components/Instagram";
 import Contact from "@/components/Contact";
 import {
   getCmsCategories,
-  getPublishedPageContent,
   resolveAlbumById,
   resolvePickedSessions
 } from "@/lib/api";
 import { localizeContent, type HideableSection } from "@/lib/cms";
 import { categories as fallbackCategories } from "@/lib/data";
 import { getTranslations } from "next-intl/server";
+
+/**
+ * How many of a picked session's photos the homepage carries.
+ *
+ * Opening a gallery tile browses that project in a lightbox, which is a
+ * preview of the work rather than the full album — the "View project" button
+ * goes to the album page for that. Shipping every photo meant a session with
+ * several hundred items sent all of them to render four small cards, and the
+ * server signed a URL for each one on the way. The album page itself is
+ * unaffected; it still resolves in full.
+ */
+const GALLERY_TILE_PHOTO_LIMIT = 30;
 
 export default async function HomePage({
   params
@@ -67,7 +78,15 @@ export default async function HomePage({
         album,
         // Null for an album behind the gallery password: the backend serves no
         // media without it, and the tile falls back to showing its cover.
-        resolved: album.category ? await resolveAlbumById(album.category, album.id) : null
+        // Capped at the source: the server stops signing past this many items
+        // rather than signing every one for the handful the strip shows.
+        resolved: album.category
+          ? await resolveAlbumById(
+              album.category,
+              album.id,
+              GALLERY_TILE_PHOTO_LIMIT
+            )
+          : null
       }))
   );
 
@@ -86,6 +105,7 @@ export default async function HomePage({
         // An item with no still of any kind would be a blank slide, so it is
         // left out rather than shown as an empty frame.
         .filter((photo) => photo.url)
+        .slice(0, GALLERY_TILE_PHOTO_LIMIT)
         .map((photo) => ({
           url: photo.url,
           type: photo.type,

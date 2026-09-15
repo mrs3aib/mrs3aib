@@ -22,6 +22,15 @@ export type UploadItem = {
   status: UploadItemStatus;
   progress: number;
   error?: string;
+  /**
+   * Position in the selection this file arrived in, fixed at enqueue time.
+   *
+   * Uploads finish out of order — four lanes, wildly different file sizes, and
+   * retries that run long after the first pass — so nothing derived from
+   * completion time can reproduce what the admin picked. Captured once here
+   * and sent with the presign, it survives any number of retries.
+   */
+  sortIndex: number;
 };
 
 type UploadQueueState = {
@@ -35,6 +44,12 @@ type UploadQueueState = {
 
 let nextId = 0;
 
+/**
+ * Monotonic across batches, so a second folder dropped into the same session
+ * lands after the first instead of interleaving with it.
+ */
+let nextSortIndex = 0;
+
 export const useUploadQueueStore = create<UploadQueueState>((set) => ({
   items: [],
   enqueue: (files) => {
@@ -42,7 +57,8 @@ export const useUploadQueueStore = create<UploadQueueState>((set) => ({
       id: `upload-${Date.now()}-${nextId++}`,
       file,
       status: "queued",
-      progress: 0
+      progress: 0,
+      sortIndex: nextSortIndex++
     }));
     set((state) => ({ items: [...state.items, ...newItems] }));
     return newItems;

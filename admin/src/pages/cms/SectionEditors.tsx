@@ -4,7 +4,8 @@ import { TextareaField } from "@/components/TextareaField";
 import { SelectField } from "@/components/SelectField";
 import { Repeater } from "@/components/Repeater";
 import { ImageUploadField } from "@/components/ImageUploadField";
-import { CheckIcon, CloseIcon } from "@/components/icons";
+import { Modal } from "@/components/Modal";
+import { CheckIcon, CloseIcon, SettingsIcon } from "@/components/icons";
 import { useLanguage } from "@/i18n/languageContext";
 import { SessionPicker } from "./SessionPicker";
 import {
@@ -20,6 +21,11 @@ import {
   type CmsLocale,
   type HomepageCmsContent,
   type LatestWeddingsMode,
+  type StoryImageFit,
+  type StoryImagePosition,
+  type StoryImagePresentation,
+  type StoryDescriptionTextStyle,
+  type StoryTextSize,
   type TranslatableSection
 } from "@/types/pageContent";
 
@@ -333,6 +339,256 @@ export function LatestWeddingsEditor({
   );
 }
 
+const STORY_IMAGE_FIT_OPTIONS: { value: StoryImageFit; label: string; labelAr: string }[] = [
+  { value: "cover", label: "Fill frame", labelAr: "ملء الإطار" },
+  { value: "contain", label: "Show full image", labelAr: "إظهار الصورة كاملة" }
+];
+
+const STORY_IMAGE_POSITION_OPTIONS: {
+  value: StoryImagePosition;
+  label: string;
+  labelAr: string;
+}[] = [
+  // Left/right here are physical, not reading-order: `object-position` has no
+  // logical equivalent, so the crop lands on the same side of the photo in
+  // both locales. Labelling these "start"/"end" implied they flipped with the
+  // Arabic layout, so an admin framing a subject on the left picked "start"
+  // and got the opposite edge cropped in one of the two languages.
+  { value: "top left", label: "Top left", labelAr: "أعلى اليسار" },
+  { value: "top", label: "Top", labelAr: "أعلى" },
+  { value: "top right", label: "Top right", labelAr: "أعلى اليمين" },
+  { value: "left", label: "Center left", labelAr: "منتصف اليسار" },
+  { value: "center", label: "Center", labelAr: "المنتصف" },
+  { value: "right", label: "Center right", labelAr: "منتصف اليمين" },
+  { value: "bottom left", label: "Bottom left", labelAr: "أسفل اليسار" },
+  { value: "bottom", label: "Bottom", labelAr: "أسفل" },
+  { value: "bottom right", label: "Bottom right", labelAr: "أسفل اليمين" }
+];
+
+const STORY_DESCRIPTION_SIZE_OPTIONS: {
+  value: StoryTextSize;
+  label: string;
+  labelAr: string;
+}[] = [
+  { value: "small", label: "Small", labelAr: "صغير" },
+  { value: "medium", label: "Medium", labelAr: "متوسط" },
+  { value: "large", label: "Large", labelAr: "كبير" }
+];
+
+/**
+ * Object-position classes for the framing preview.
+ *
+ * Written out in full rather than built from the value, because Tailwind scans
+ * source text for class names and would not find a string assembled at
+ * runtime.
+ */
+const PREVIEW_POSITION_CLASS: Record<StoryImagePosition, string> = {
+  center: "object-center",
+  top: "object-top",
+  bottom: "object-bottom",
+  left: "object-left",
+  right: "object-right",
+  "top left": "object-left-top",
+  "top right": "object-right-top",
+  "bottom left": "object-left-bottom",
+  "bottom right": "object-right-bottom"
+};
+
+function StoryImageSettingsModal({
+  open,
+  imageUrl,
+  value,
+  descriptionTextStyle,
+  onChange,
+  onDescriptionTextStyleChange,
+  onClose
+}: {
+  open: boolean;
+  imageUrl: string;
+  value?: StoryImagePresentation;
+  descriptionTextStyle?: StoryDescriptionTextStyle;
+  onChange: (next: StoryImagePresentation) => void;
+  onDescriptionTextStyleChange: (next: StoryDescriptionTextStyle) => void;
+  onClose: () => void;
+}) {
+  const { t } = useLanguage();
+  const update = (patch: Partial<StoryImagePresentation>) =>
+    onChange({ ...value, ...patch });
+  const mobileFit = value?.mobileFit ?? "cover";
+  const desktopFit = value?.desktopFit ?? "cover";
+  const mobilePosition = value?.mobilePosition ?? "center";
+  const desktopPosition = value?.desktopPosition ?? "center";
+  const mobileDescriptionSize = descriptionTextStyle?.mobileSize ?? "medium";
+  const desktopDescriptionSize = descriptionTextStyle?.desktopSize ?? "medium";
+  const updateDescriptionTextStyle = (patch: Partial<StoryDescriptionTextStyle>) =>
+    onDescriptionTextStyleChange({ ...descriptionTextStyle, ...patch });
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("Story image framing", "تنسيق صورة القصة")}
+      panelClassName="max-w-3xl"
+    >
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="grid gap-3">
+          {/*
+            The preview mirrors the live section: a tall phone frame, the
+            chosen fit and position actually applied, and the two bands that
+            carry text shaded. Previously this was a fixed 4:3 `object-cover`
+            thumbnail that ignored every setting in the panel, so the admin
+            picked a focal position blind and only discovered the crop after
+            publishing.
+          */}
+          <div className="overflow-hidden rounded-md border border-line bg-base">
+            {imageUrl ? (
+              <div className="relative mx-auto aspect-9/16 w-full max-w-[220px]">
+                <img
+                  src={imageUrl}
+                  alt=""
+                  className={`h-full w-full ${
+                    mobileFit === "cover" ? "object-cover" : "object-contain"
+                  } ${PREVIEW_POSITION_CLASS[mobilePosition]}`}
+                />
+                <div className="pointer-events-none absolute inset-x-0 top-0 flex h-2/5 items-start bg-linear-to-b from-black/85 via-black/55 to-transparent p-2">
+                  <span className="text-[10px] uppercase tracking-wide text-white/70">
+                    {t("Heading area", "منطقة العنوان")}
+                  </span>
+                </div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-3/5 items-end bg-linear-to-t from-black/85 via-black/60 to-transparent p-2">
+                  <span className="text-[10px] uppercase tracking-wide text-white/70">
+                    {t("Chapter text area", "منطقة نص الفصل")}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex aspect-9/16 items-center justify-center px-5 text-center text-sm text-secondary">
+                {t("Upload an image to preview its framing.", "ارفع صورة لمعاينة تنسيقها.")}
+              </div>
+            )}
+          </div>
+          <p className="text-xs leading-relaxed text-secondary">
+            {t(
+              "Phone preview. Upload a tall portrait photo (9:16, at least 1200×2133) with the subject in the middle — the shaded bands sit under the heading and the chapter text. A landscape photo will be cropped hard on phones.",
+              "معاينة الجوال. ارفع صورة طولية (9:16، 1200×2133 على الأقل) مع وضع الموضوع في المنتصف — تقع المساحات المظللة أسفل العنوان ونص الفصل. الصورة العرضية سيتم قصها بشدة على الجوال."
+            )}
+          </p>
+        </div>
+
+        <div className="grid gap-5">
+          <fieldset className="grid gap-3">
+            <legend className="text-sm font-medium text-primary">
+              {t("Mobile", "الجوال")}
+            </legend>
+            <SelectField
+              label={t("Image size", "حجم الصورة")}
+              value={mobileFit}
+              onChange={(e) => update({ mobileFit: e.target.value as StoryImageFit })}
+            >
+              {STORY_IMAGE_FIT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label, option.labelAr)}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              label={t("Focal position", "موضع التركيز")}
+              value={mobilePosition}
+              onChange={(e) =>
+                update({ mobilePosition: e.target.value as StoryImagePosition })
+              }
+            >
+              {STORY_IMAGE_POSITION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label, option.labelAr)}
+                </option>
+              ))}
+            </SelectField>
+          </fieldset>
+
+          <fieldset className="grid gap-3 border-t border-line pt-5">
+            <legend className="text-sm font-medium text-primary">
+              {t("Desktop", "سطح المكتب")}
+            </legend>
+            <SelectField
+              label={t("Image size", "حجم الصورة")}
+              value={desktopFit}
+              onChange={(e) => update({ desktopFit: e.target.value as StoryImageFit })}
+            >
+              {STORY_IMAGE_FIT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label, option.labelAr)}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              label={t("Focal position", "موضع التركيز")}
+              value={desktopPosition}
+              onChange={(e) =>
+                update({ desktopPosition: e.target.value as StoryImagePosition })
+              }
+            >
+              {STORY_IMAGE_POSITION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label, option.labelAr)}
+                </option>
+              ))}
+            </SelectField>
+          </fieldset>
+
+          <fieldset className="grid gap-3 border-t border-line pt-5">
+            <legend className="text-sm font-medium text-primary">
+              {t("Description text", "نص الوصف")}
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SelectField
+                label={t("Mobile size", "حجم الجوال")}
+                value={mobileDescriptionSize}
+                onChange={(e) =>
+                  updateDescriptionTextStyle({
+                    mobileSize: e.target.value as StoryTextSize
+                  })
+                }
+              >
+                {STORY_DESCRIPTION_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.label, option.labelAr)}
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField
+                label={t("Desktop size", "حجم سطح المكتب")}
+                value={desktopDescriptionSize}
+                onChange={(e) =>
+                  updateDescriptionTextStyle({
+                    desktopSize: e.target.value as StoryTextSize
+                  })
+                }
+              >
+                {STORY_DESCRIPTION_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.label, option.labelAr)}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+        >
+          {t("Done", "تم")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export function StoryEditor({
   value,
   onChange,
@@ -350,6 +606,7 @@ export function StoryEditor({
    */
   const legacyImages = value.images ?? [];
   const chapters = value.chapters ?? [];
+  const [framingChapter, setFramingChapter] = useState<number | null>(null);
 
   /**
    * Chapter prose for the tab in view. The shared `chapters` entry supplies the
@@ -381,6 +638,30 @@ export function StoryEditor({
     });
   };
   const { text, setText, tr } = useLocalizedSection(value, onChange, "story", locale);
+  const framingItem = framingChapter === null ? undefined : chapters[framingChapter];
+  const framingImage =
+    framingChapter === null
+      ? ""
+      : framingItem?.image ?? legacyImages[framingChapter] ?? "";
+
+  const updateImagePresentation = (next: StoryImagePresentation) => {
+    if (framingChapter === null || !chapters[framingChapter]) return;
+    onChange({
+      ...value,
+      chapters: chapters.map((chapter, index) =>
+        index === framingChapter ? { ...chapter, imagePresentation: next } : chapter
+      )
+    });
+  };
+  const updateDescriptionTextStyle = (next: StoryDescriptionTextStyle) => {
+    if (framingChapter === null || !chapters[framingChapter]) return;
+    onChange({
+      ...value,
+      chapters: chapters.map((chapter, index) =>
+        index === framingChapter ? { ...chapter, descriptionTextStyle: next } : chapter
+      )
+    });
+  };
 
   return (
     <>
@@ -447,8 +728,27 @@ export function StoryEditor({
               value={item.image ?? legacyImages[index] ?? ""}
               onChange={(image) => update({ ...item, image })}
             />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setFramingChapter(index)}
+                className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-accent hover:text-primary"
+              >
+                <SettingsIcon className="h-4 w-4" />
+                {t("Image framing", "تنسيق الصورة")}
+              </button>
+            </div>
           </div>
         )}
+      />
+      <StoryImageSettingsModal
+        open={framingChapter !== null}
+        imageUrl={framingImage}
+        value={framingItem?.imagePresentation}
+        descriptionTextStyle={framingItem?.descriptionTextStyle}
+        onChange={updateImagePresentation}
+        onDescriptionTextStyleChange={updateDescriptionTextStyle}
+        onClose={() => setFramingChapter(null)}
       />
     </>
   );

@@ -119,7 +119,7 @@ export const sessionRepository = {
    * hidden even once `isPublic` is set — previously the filter was merely "not
    * archived", which made draft and active mean exactly the same thing.
    */
-  listPublicByCategory(category: SessionCategory) {
+  listPublicByCategory(category: SessionCategory, take: number) {
     return prisma.photoSession.findMany({
       where: {
         category,
@@ -132,6 +132,10 @@ export const sessionRepository = {
         media: { some: { processingStatus: "ready" } }
       },
       orderBy: { eventDate: "desc" },
+      // Bounded like `listPublic`. Without a cap this pulled every published
+      // session in the category, each dragging its cover-candidate media rows
+      // along — and the page then asked the browser to fetch every cover.
+      take,
       select: {
         id: true,
         slug: true,

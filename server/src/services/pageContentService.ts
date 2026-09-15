@@ -72,6 +72,25 @@ export const pageContentService = {
     return page ? toDto(page) : null;
   },
 
+  /**
+   * `pageHidden` for each requested key, in one round trip.
+   *
+   * Only the flag is returned, never the page content: the caller is deciding
+   * what to show in a menu, and shipping whole records for that would send far
+   * more than the question needs. A key with no published record is absent
+   * from the map, which callers read as "not hidden" — a page that does not
+   * exist yet must not disappear from navigation.
+   */
+  async getHiddenFlags(pageKeys: string[]): Promise<Record<string, boolean>> {
+    const pages = await pageContentRepository.findPublishedByPageKeys(pageKeys);
+    const flags: Record<string, boolean> = {};
+    for (const page of pages) {
+      const content = page.content as { pageHidden?: boolean } | null;
+      flags[page.pageKey] = Boolean(content?.pageHidden);
+    }
+    return flags;
+  },
+
   async update(
     pageKey: string,
     input: { title: string; content: Prisma.InputJsonValue; published?: boolean }

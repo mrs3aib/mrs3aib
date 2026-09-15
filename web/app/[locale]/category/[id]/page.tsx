@@ -6,7 +6,6 @@ import { routing } from "@/i18n/routing";
 import { categories, type CategoryId } from "@/lib/data";
 import {
   getCmsCategories,
-  getPublishedPageContent,
   resolveCategoryAlbums
 } from "@/lib/api";
 import { sectionTextFor } from "@/lib/cms";

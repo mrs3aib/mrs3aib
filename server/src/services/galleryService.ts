@@ -35,7 +35,7 @@ export const galleryService = {
     }
   },
 
-  async getGallery(sessionId: string) {
+  async getGallery(sessionId: string, limit?: number) {
     /**
      * The three reads do not depend on each other, so they go out together.
      * Run in sequence they cost three round trips to a remote database, which
@@ -55,44 +55,66 @@ export const galleryService = {
       throw new ForbiddenError("This gallery has expired");
     }
 
-    const readyMedia = media.filter((m) => m.processingStatus === "ready");
+    const allReady = media.filter((m) => m.processingStatus === "ready");
+    /**
+     * Signing is per item and happens below, so the cap is applied here rather
+     * than after: the point is to not sign what the caller will not use. The
+     * media list keeps its picked order, so a limited response is the first N
+     * of the album rather than an arbitrary subset.
+     */
+    const readyMedia = limit ? allReady.slice(0, limit) : allReady;
 
-    const withUrls = await Promise.all(
-      readyMedia.map(async (item) => ({
-        ...toMediaDto(item),
-        /**
-         * A linked video has no file of ours, so its still comes straight from
-         * YouTube's CDN and there is no signed source to hand out — the site
-         * embeds it by `externalId` instead.
-         */
-        thumbnailUrl:
-          item.source === "youtube"
-            ? item.externalId
-              ? youTubeThumbnailUrl(item.externalId)
-              : null
-            : item.thumbnailKey
-              ? await storageProvider.getDownloadUrl(item.thumbnailKey)
-              : null,
-        /**
-         * Playable/viewable source for the lightbox. Videos need it to play at
-         * all — a thumbnail is a still frame — and images use it for the
-         * full-size view rather than blowing up the grid thumbnail.
-         */
-        sourceUrl: item.storageKey
-          ? await storageProvider.getDownloadUrl(item.storageKey)
-          : null
-      }))
-    );
+    const [coverUrl, withUrls] = await Promise.all([
+      // A custom session cover has priority over every media item. Sign it with
+      // the gallery response so the page and its share metadata use one source.
+      session.coverStorageKey
+        ? storageProvider.getDownloadUrl(session.coverStorageKey)
+        : Promise.resolve(session.coverImageExternalUrl),
+      Promise.all(
+        readyMedia.map(async (item) => ({
+          ...toMediaDto(item),
+          /**
+           * A linked video has no file of ours, so its still comes straight from
+           * YouTube's CDN and there is no signed source to hand out — the site
+           * embeds it by `externalId` instead.
+           */
+          thumbnailUrl:
+            item.source === "youtube"
+              ? item.externalId
+                ? youTubeThumbnailUrl(item.externalId)
+                : null
+              : item.thumbnailKey
+                ? await storageProvider.getDownloadUrl(item.thumbnailKey)
+                : null,
+          /**
+           * Playable/viewable source for the lightbox. Videos need it to play at
+           * all — a thumbnail is a still frame — and images use it for the
+           * full-size view rather than blowing up the grid thumbnail.
+           */
+          sourceUrl: item.storageKey
+            ? await storageProvider.getDownloadUrl(item.storageKey)
+            : null
+        }))
+      )
+    ]);
 
     return {
       session: {
         id: session.id,
         title: session.title,
+        /**
+         * Carried so a caller can confirm the session is the one it thinks it
+         * is. The album route takes a category from its URL path; without this
+         * it had nothing to check that against.
+         */
+        category: session.category,
         eventDate: session.eventDate.toISOString(),
         location: session.location,
         description: session.description,
         /** Media id pinned as the cover, so the site can feature it. */
-        coverImage: session.coverImage
+        coverImage: session.coverImage,
+        /** A separately uploaded or externally hosted still for the session. */
+        coverUrl
       },
       settings: {
         // Sent so the gallery can hide its download controls rather than

@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { publicGalleryController } from "@/controllers/publicGalleryController";
-import { authRateLimiter, publicArchiveRateLimiter } from "@/middleware/rateLimit";
+import {
+  authRateLimiter,
+  contentRateLimiter,
+  publicArchiveRateLimiter
+} from "@/middleware/rateLimit";
 import { validate } from "@/middleware/validate";
 import { asyncHandler } from "@/utils/asyncHandler";
 import {
@@ -18,6 +22,10 @@ import {
  * private client galleries — those stay behind `/gallery` and `/download`.
  */
 export const publicGalleryRouter = Router();
+
+// Same exemption as `/pages/*`: these are anonymous reads of published
+// content, metered by their own budget rather than the general one.
+publicGalleryRouter.use(contentRateLimiter);
 
 /**
  * @openapi

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { mediaController } from "@/controllers/mediaController";
 import { validate } from "@/middleware/validate";
 import { requireAuth, requireAdmin } from "@/middleware/auth";
+import { uploadRateLimiter } from "@/middleware/rateLimit";
 import { asyncHandler } from "@/utils/asyncHandler";
 import {
   addYouTubeLinkSchema,
@@ -56,6 +57,7 @@ adminMediaRouter.get("/", validate(listMediaSchema), asyncHandler(mediaControlle
  */
 adminMediaRouter.post(
   "/upload-url",
+  uploadRateLimiter,
   validate(requestUploadUrlSchema),
   asyncHandler(mediaController.requestUploadUrl)
 );
@@ -89,6 +91,7 @@ adminMediaRouter.post(
  */
 adminMediaRouter.post(
   "/:id/confirm",
+  uploadRateLimiter,
   validate(mediaIdParamSchema),
   asyncHandler(mediaController.confirmUpload)
 );

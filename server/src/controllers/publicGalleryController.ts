@@ -26,8 +26,11 @@ export const publicGalleryController = {
   },
 
   async getGallery(req: Request, res: Response): Promise<void> {
+    const { limit } = req.query as unknown as { limit?: number };
     const gallery = await publicGalleryService.getPublicGallery(
-      req.params.sessionId as string
+      req.params.sessionId as string,
+      undefined,
+      limit
     );
     res.status(200).json(gallery);
   },

@@ -10,7 +10,7 @@ export const listMediaSchema = z.object({
     type: z.enum(["image", "video"]).optional(),
     search: z.string().trim().min(1).max(200).optional(),
     processingStatus: z.enum(["processing", "ready", "failed"]).optional(),
-    sort: z.enum(["newest", "oldest", "largest", "smallest", "name"]).optional()
+    sort: z.enum(["newest", "oldest", "largest", "smallest", "name", "picked"]).optional()
   })
 });
 
@@ -19,7 +19,13 @@ export const requestUploadUrlSchema = z.object({
     sessionId: z.string().min(1),
     fileName: z.string().min(1).max(255),
     mimeType: z.string().min(1),
-    size: z.number().int().positive()
+    size: z.number().int().positive(),
+    /**
+     * Position within the batch being uploaded. Optional so an older client,
+     * or any caller that does not track order, still works — those rows get 0
+     * and fall back to creation order.
+     */
+    sortIndex: z.number().int().min(0).optional()
   })
 });
 

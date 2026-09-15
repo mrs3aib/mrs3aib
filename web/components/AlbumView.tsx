@@ -29,12 +29,12 @@ import {
   PlayIcon,
   QrIcon,
   RowsIcon,
-  SearchIcon,
   ShareIcon,
   VideoCameraIcon
 } from "./icons";
 import MediaLightbox from "./MediaLightbox";
 import QrModal from "./QrModal";
+import ResilientImage from "./ResilientImage";
 
 type AlbumActionLabels = {
   back: string;
@@ -593,7 +593,7 @@ function AlbumPreview({
             />
           ) : (
             <>
-              <Image
+              <ResilientImage
                 src={album.coverUrl}
                 alt={title}
                 fill
@@ -619,16 +619,21 @@ function AlbumPreview({
                   onClick={() => (isVideoCover ? setPlaying(true) : onOpen?.())}
                   className="absolute inset-0 z-20 flex items-center justify-center bg-black/10 transition-colors hover:bg-black/25"
                 >
-                  <span className="flex h-16 w-16 items-center justify-center rounded border border-white/35 bg-black/55 text-white backdrop-blur-md transition-transform duration-500 group-hover:scale-105 group-active:scale-105">
-                    {/* A play symbol over a still image promises a video that
-                        does not exist; an image cover opens the lightbox, so it
-                        gets the magnifier instead. */}
-                    {isVideoCover || isEmbedCover ? (
+                  {/*
+                    Video keeps a visible badge: playback is a distinct action
+                    a still frame gives no hint of, so the control has to be
+                    shown. An image cover only opens a larger view of what is
+                    already on screen — the picture itself reads as the target,
+                    and a badge sitting over it just covers the photo it is
+                    advertising. The button still fills the frame, so the whole
+                    cover stays clickable and keyboard-reachable; only the
+                    marker is gone.
+                  */}
+                  {isVideoCover || isEmbedCover ? (
+                    <span className="flex h-16 w-16 items-center justify-center rounded border border-white/35 bg-black/55 text-white backdrop-blur-md transition-transform duration-500 group-hover:scale-105 group-active:scale-105">
                       <PlayIcon className="h-6 w-6" />
-                    ) : (
-                      <SearchIcon className="h-6 w-6" />
-                    )}
-                  </span>
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
             </>
@@ -1012,7 +1017,7 @@ function AlbumPhotoGrid({
                 isRows ? "h-full w-44 shrink-0" : "h-full w-full"
               }`}
             >
-              <Image
+              <ResilientImage
                 src={photo.url}
                 alt={`${title} ${index + 1}`}
                 fill

@@ -28,6 +28,12 @@ export const pageContentController = {
     res.status(200).json(page);
   },
 
+  async getHiddenFlags(req: Request, res: Response): Promise<void> {
+    const { keys } = req.query as unknown as { keys: string[] };
+    const flags = await pageContentService.getHiddenFlags(keys);
+    res.status(200).json(flags);
+  },
+
   async getPublished(req: Request, res: Response): Promise<void> {
     const page = await pageContentService.getPublished(req.params.pageKey as string);
     if (!page) {

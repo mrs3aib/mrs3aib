@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef } from "react";
 import axios from "axios";
 import { useQueryClient } from "@tanstack/react-query";
 import { confirmUpload, requestUploadUrl } from "@/services/mediaService";
-import { useUploadQueueStore, type UploadItem } from "@/store/uploadQueueStore";
+import {
+  useUploadQueueStore,
+  type UploadItem,
+  type UploadItemStatus
+} from "@/store/uploadQueueStore";
 import { queryKeys } from "@/services/queryKeys";
 import { useLanguage } from "@/i18n/languageContext";
 
@@ -21,6 +25,44 @@ export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 * 1024; // 5GB — R2 single-
 /** The cap in whole gigabytes, for user-facing copy that must not drift from it. */
 export const MAX_FILE_SIZE_GB = MAX_FILE_SIZE_BYTES / (1024 * 1024 * 1024);
 const uploadControllers = new Map<string, AbortController>();
+
+/**
+ * Items currently owned by a lane, keyed by upload id.
+ *
+ * `retryIncomplete` and `retryItem` decide what to re-run from the `items`
+ * array React rendered with, which is a snapshot: between that render and the
+ * click, a lane may have already picked an item up and moved it to
+ * `requesting`. The snapshot still says `error`, so the item is started a
+ * second time — two presigns, two PUTs, and two media rows for one file, of
+ * which only one is ever confirmed. That is the source of the half-uploaded
+ * duplicates left behind by repeated retry presses.
+ *
+ * Store state is not enough on its own: a lane sets `requesting` through a
+ * React update, so two clicks in the same tick would both read the pre-update
+ * value. This map is written synchronously, before any await, so it is
+ * authoritative the instant a lane claims an item.
+ */
+const inFlight = new Set<string>();
+
+/**
+ * Statuses that mean a lane already owns this item. Restarting one of these
+ * abandons a transfer that is partway done and races the original request.
+ */
+/**
+ * The single backlog every lane drains, and the number of lanes currently
+ * draining it. Module scope, not React state: lanes must see pushes that
+ * happen while they are mid-flight, and a re-render must never fork a second
+ * set of them.
+ */
+const pendingQueue: UploadItem[] = [];
+let activeLanes = 0;
+
+const RUNNING_STATUSES: UploadItemStatus[] = [
+  "requesting",
+  "uploading",
+  "storing",
+  "confirming"
+];
 
 /**
  * How many files upload at once.
@@ -101,6 +143,12 @@ export function useMediaUpload(sessionId: string) {
 
   const runUpload = useCallback(
     async (item: UploadItem) => {
+      // Claimed synchronously: a second caller for the same file — a retry
+      // racing a lane, or two retry clicks in one tick — returns here instead
+      // of starting a duplicate transfer.
+      if (inFlight.has(item.id)) return;
+      inFlight.add(item.id);
+
       const controller = new AbortController();
       uploadControllers.set(item.id, controller);
       updateItem(item.id, { status: "requesting", error: undefined, progress: 0 });
@@ -110,7 +158,8 @@ export function useMediaUpload(sessionId: string) {
           sessionId,
           fileName: item.file.name,
           mimeType: item.file.type,
-          size: item.file.size
+          size: item.file.size,
+          sortIndex: item.sortIndex
         });
 
         updateItem(item.id, { status: "uploading" });
@@ -157,6 +206,7 @@ export function useMediaUpload(sessionId: string) {
         });
       } finally {
         uploadControllers.delete(item.id);
+        inFlight.delete(item.id);
       }
     },
     [sessionId, updateItem, scheduleRefresh, t]
@@ -169,17 +219,36 @@ export function useMediaUpload(sessionId: string) {
    * a fresh selection and a bulk retry alike. Starting them all at once is
    * what produced 429s from the API's rate limiter, and a retry of fifty
    * failures would burst just as hard as the original fifty files did.
+   *
+   * Work is appended to one shared backlog drained by at most
+   * `MAX_CONCURRENT_UPLOADS` lanes, rather than each call starting lanes of
+   * its own. Previously a retry pressed mid-upload — or a second folder
+   * dropped while the first was still going — spawned a whole new set, so
+   * four lanes became eight, then twelve. Concurrency climbed with every
+   * press, which is exactly what drove the burst back over the limit and
+   * produced the next round of failures the admin then retried again.
    */
   const runQueue = useCallback(
     (queue: UploadItem[]) => {
-      const pending = [...queue];
+      // Items already owned by a lane are dropped here rather than queued and
+      // skipped later, so the backlog length stays honest.
+      for (const item of queue) {
+        if (!inFlight.has(item.id) && !pendingQueue.some((q) => q.id === item.id)) {
+          pendingQueue.push(item);
+        }
+      }
+
       const worker = async () => {
-        for (let next = pending.shift(); next; next = pending.shift()) {
+        for (let next = pendingQueue.shift(); next; next = pendingQueue.shift()) {
           await runUpload(next);
         }
+        activeLanes -= 1;
       };
-      const lanes = Math.min(MAX_CONCURRENT_UPLOADS, pending.length);
-      for (let i = 0; i < lanes; i += 1) void worker();
+
+      while (activeLanes < MAX_CONCURRENT_UPLOADS && activeLanes < pendingQueue.length) {
+        activeLanes += 1;
+        void worker();
+      }
     },
     [runUpload]
   );
@@ -208,12 +277,22 @@ export function useMediaUpload(sessionId: string) {
     [enqueue, runQueue]
   );
 
+  /**
+   * Read the queue as it is now, not as it was when this callback was built.
+   *
+   * Retry handlers are invoked from a click long after their closure captured
+   * `items`, and during a bulk upload that array is stale within milliseconds.
+   * Going to the store directly is what makes the status filters below mean
+   * anything.
+   */
+  const currentItems = useCallback(() => useUploadQueueStore.getState().items, []);
+
   const retryItem = useCallback(
     (id: string) => {
-      const item = items.find((i) => i.id === id);
-      if (item) void runUpload(item);
+      const item = currentItems().find((i) => i.id === id);
+      if (item && !RUNNING_STATUSES.includes(item.status)) void runUpload(item);
     },
-    [items, runUpload]
+    [currentItems, runUpload]
   );
 
   /**
@@ -228,17 +307,22 @@ export function useMediaUpload(sessionId: string) {
    */
   const retryIncomplete = useCallback(() => {
     runQueue(
-      items.filter(
+      currentItems().filter(
         (item) =>
           item.status === "error" ||
           item.status === "cancelled" ||
           item.status === "queued"
       )
     );
-  }, [items, runQueue]);
+  }, [currentItems, runQueue]);
 
   const cancelItem = useCallback(
     (id: string) => {
+      // A queued item has no controller yet; it must be pulled out of the
+      // backlog or a lane would pick it up and upload it after cancellation.
+      const queuedAt = pendingQueue.findIndex((item) => item.id === id);
+      if (queuedAt !== -1) pendingQueue.splice(queuedAt, 1);
+
       const controller = uploadControllers.get(id);
       if (controller) {
         controller.abort();
@@ -253,10 +337,10 @@ export function useMediaUpload(sessionId: string) {
   );
 
   const cancelAll = useCallback(() => {
-    items
+    currentItems()
       .filter((item) => !["done", "error", "cancelled"].includes(item.status))
       .forEach((item) => cancelItem(item.id));
-  }, [cancelItem, items]);
+  }, [cancelItem, currentItems]);
 
   return {
     items,

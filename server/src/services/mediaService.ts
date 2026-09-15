@@ -138,6 +138,7 @@ export const mediaService = {
     fileName: string;
     mimeType: string;
     size: number;
+    sortIndex?: number | undefined;
   }): Promise<{ uploadUrl: string; mediaId: string }> {
     const session = await sessionRepository.findById(input.sessionId);
     if (!session) throw new ValidationError("Selected session does not exist");
@@ -158,6 +159,7 @@ export const mediaService = {
       storageKey: "", // set once the media id is known, right below
       mimeType: input.mimeType,
       size: input.size,
+      sortIndex: input.sortIndex ?? 0,
       processingStatus: "processing"
     });
 
