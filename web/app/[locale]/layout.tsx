@@ -48,6 +48,14 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "meta" });
   return {
+    /**
+     * Required for `og:image` to be emitted as an absolute URL. Without it
+     * Next renders a relative path, which every link-preview crawler ignores —
+     * so a shared link showed no image regardless of what the page declared.
+     */
+    ...(process.env.NEXT_PUBLIC_SITE_URL
+      ? { metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL) }
+      : {}),
     title: t("title"),
     description: t("description"),
     icons: {

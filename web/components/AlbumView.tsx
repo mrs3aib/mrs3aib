@@ -45,6 +45,8 @@ type AlbumActionLabels = {
   photos: string;
   qr: string;
   share: string;
+  copied: string;
+  copyFailed: string;
   video: string;
   cancelSelect: string;
   selectAll: string;
@@ -85,6 +87,42 @@ function useAlbumMeta(album: ResolvedAlbum, categoryLabel: string) {
   }, [album.date, locale]);
 
   return { locale, title, type, formattedDate };
+}
+
+/**
+ * Copy text, falling back to the pre-clipboard-API approach.
+ *
+ * `navigator.clipboard` is undefined outside a secure context and can be
+ * refused by permission policy, so a copy that relies on it alone fails
+ * silently on plain HTTP. The hidden-textarea route still works there.
+ * Returns whether the text actually reached the clipboard.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the legacy path rather than giving up */
+  }
+
+  try {
+    const field = document.createElement("textarea");
+    field.value = text;
+    // Kept out of view and out of the tab order, and `readOnly` stops the
+    // mobile keyboard appearing for an element the visitor never sees.
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.top = "-9999px";
+    document.body.appendChild(field);
+    field.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(field);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function useAlbumUrl(album: ResolvedAlbum) {
@@ -169,6 +207,8 @@ export default function AlbumView({
 }) {
   const t = useTranslations("albums");
   const [showQr, setShowQr] = useState(false);
+  /** Whether the last share press copied the link, failed, or has faded. */
+  const [shareState, setShareState] = useState<"idle" | "copied" | "failed">("idle");
   const [downloadState, setDownloadState] = useState<
     "idle" | "preparing" | "error"
   >("idle");
@@ -203,6 +243,8 @@ export default function AlbumView({
     photos: t("photos"),
     qr: t("qr"),
     share: t("share"),
+    copied: t("copied"),
+    copyFailed: t("copyFailed"),
     video: t("video"),
     cancelSelect: t("cancelSelect"),
     selectAll: t("selectAll"),
@@ -346,19 +388,45 @@ export default function AlbumView({
     }
   };
 
+  /**
+   * Share the album, or copy its link where sharing is unavailable.
+   *
+   * Both `navigator.share` and `navigator.clipboard` exist only in a secure
+   * context, so on plain HTTP — and in any browser that refuses clipboard
+   * permission — the copy threw into an empty catch and the button did
+   * nothing at all. On desktop, where `navigator.share` is absent, even the
+   * success path was silent: the link was copied and nothing on screen said
+   * so, which is indistinguishable from a dead button.
+   *
+   * So: a fallback that works without the clipboard API, and visible feedback
+   * either way.
+   */
   const shareAlbum = async () => {
     if (!albumUrl) return;
-    try {
-      if (navigator.share) {
+
+    // The native sheet is its own confirmation, and a visitor dismissing it
+    // has not failed at anything — neither case needs a badge.
+    if (navigator.share) {
+      try {
         await navigator.share({ title: albumTitle, url: albumUrl });
-      } else {
-        await navigator.clipboard.writeText(albumUrl);
+      } catch {
+        /* dismissed, or the sheet refused — nothing to report */
       }
-    } catch {
-      // Sharing is a best-effort enhancement; cancelling the native dialog is
-      // not an error the visitor needs to see.
+      return;
     }
+
+    setShareState((await copyText(albumUrl)) ? "copied" : "failed");
   };
+
+  /**
+   * Clear the badge after a moment, so it reads as a confirmation of the press
+   * rather than a permanent label.
+   */
+  useEffect(() => {
+    if (shareState === "idle") return;
+    const timer = window.setTimeout(() => setShareState("idle"), 1800);
+    return () => window.clearTimeout(timer);
+  }, [shareState]);
 
   const body = (
     <>
@@ -382,6 +450,7 @@ export default function AlbumView({
           type={albumType}
           formattedDate={formattedDate}
           onShare={shareAlbum}
+          shareState={shareState}
           onToggleQr={() => setShowQr((current) => !current)}
           onDownloadAll={downloadAll}
           downloadState={downloadState}
@@ -652,6 +721,7 @@ function AlbumSummary({
   type,
   formattedDate,
   onShare,
+  shareState,
   onToggleQr,
   onDownloadAll,
   downloadState,
@@ -664,6 +734,7 @@ function AlbumSummary({
   type: string;
   formattedDate: string;
   onShare: () => void;
+  shareState: "idle" | "copied" | "failed";
   onToggleQr: () => void;
   onDownloadAll: () => void;
   downloadState: "idle" | "preparing" | "error";
@@ -726,13 +797,26 @@ function AlbumSummary({
                 : labels.download}
           </button>
         ) : null}
+        {/* The label carries the confirmation: a copy that says nothing is
+            indistinguishable from a button that does nothing. */}
         <button
           type="button"
           onClick={onShare}
-          className="inline-flex min-w-36 items-center justify-center gap-2 rounded border border-white/30 px-5 py-3 text-sm font-medium text-primary transition-colors hover:border-accent hover:text-accent"
+          aria-live="polite"
+          className={`inline-flex min-w-36 items-center justify-center gap-2 rounded border px-5 py-3 text-sm font-medium transition-colors ${
+            shareState === "copied"
+              ? "border-accent text-accent"
+              : shareState === "failed"
+                ? "border-red-400/60 text-red-300"
+                : "border-white/30 text-primary hover:border-accent hover:text-accent"
+          }`}
         >
           <ShareIcon className="h-4 w-4" />
-          {labels.share}
+          {shareState === "copied"
+            ? labels.copied
+            : shareState === "failed"
+              ? labels.copyFailed
+              : labels.share}
         </button>
         <button
           type="button"

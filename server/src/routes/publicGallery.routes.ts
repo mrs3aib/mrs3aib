@@ -79,6 +79,23 @@ publicGalleryRouter.get(
  */
 // Registered before `/sessions/:sessionId` so "access" is not swallowed as a
 // media path segment.
+/**
+ * @openapi
+ * /public/sessions/{sessionId}/cover:
+ *   get:
+ *     tags: [Public]
+ *     summary: Redirect to the session's cover image (stable, unsigned URL)
+ *     responses:
+ *       302: { description: Redirect to a freshly signed cover URL }
+ *       404: { description: Not found, not published, or no cover }
+ */
+// Before `/sessions/:sessionId` so "cover" is not swallowed as a media path.
+publicGalleryRouter.get(
+  "/sessions/:sessionId/cover",
+  validate(publicSessionParamSchema),
+  asyncHandler(publicGalleryController.getCoverRedirect)
+);
+
 publicGalleryRouter.get(
   "/sessions/:sessionId/access",
   validate(publicSessionParamSchema),
