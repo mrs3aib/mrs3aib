@@ -203,11 +203,12 @@
     "qrTitle": "Scan to open this album",
     "qrHint": "Point your phone camera at the code, or copy the link below.",
     "copyLink": "Copy link",
-    "copied": "Copied",
+    "copied": "Link copied",
     "downloadQr": "Download QR",
     "empty": "Nothing to show here yet.",
     "playVideo": "Play video",
-    "locked": "Password protected"
+    "locked": "Password protected",
+    "copyFailed": "Copy failed"
   },
   "categoryPages": {
     "backToHome": "Back to home",

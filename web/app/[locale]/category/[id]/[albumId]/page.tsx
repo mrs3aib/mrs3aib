@@ -56,7 +56,21 @@ export async function generateMetadata({
   if (!album?.title) return {};
 
   const description = album.description ?? undefined;
-  const image = album.coverUrl || undefined;
+
+  /**
+   * A permanent address for the cover, not the signed URL the page renders.
+   *
+   * Storage signatures live ten minutes. A crawler fetches `og:image` whenever
+   * the link is first shared — often hours later — and was met with
+   * `ExpiredRequest`, so WhatsApp rendered the card with no image. This
+   * endpoint signs on demand and redirects, so the metadata can name a URL
+   * that never goes stale.
+   */
+  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+  const image =
+    apiBase && album.coverUrl
+      ? `${apiBase}/public/sessions/${albumId}/cover`
+      : undefined;
 
   return {
     title: album.title,
@@ -70,6 +84,14 @@ export async function generateMetadata({
             images: [
               {
                 url: image,
+                /**
+                 * Declared so the crawler can pick the large card without
+                 * downloading and measuring the file first. WhatsApp falls
+                 * back to the small thumbnail layout when it cannot establish
+                 * that the image clears its size threshold.
+                 */
+                width: 1200,
+                height: 630,
                 alt: album.title
               }
             ]

@@ -25,6 +25,30 @@ export const publicGalleryController = {
     res.status(200).json(access);
   },
 
+  /**
+   * Redirect to the session's cover, signing it at request time.
+   *
+   * Link-preview crawlers (WhatsApp, Twitter, Facebook) fetch an `og:image`
+   * minutes to days after the page was rendered. A signed storage URL embedded
+   * in the metadata has a ten-minute life, so by the time the crawler asked it
+   * answered `ExpiredRequest` and the preview rendered with no image at all.
+   * This URL never expires; the signature is minted per request and handed
+   * over as a redirect, so the metadata can name a permanent address.
+   */
+  async getCoverRedirect(req: Request, res: Response): Promise<void> {
+    const url = await publicGalleryService.getCoverUrl(
+      req.params.sessionId as string
+    );
+    if (!url) {
+      res.status(404).json({ message: "Cover not found" });
+      return;
+    }
+    // Cacheable, but well inside the signature's life so a cached redirect
+    // never outlives the URL it points at.
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.redirect(302, url);
+  },
+
   async getGallery(req: Request, res: Response): Promise<void> {
     const { limit } = req.query as unknown as { limit?: number };
     const gallery = await publicGalleryService.getPublicGallery(

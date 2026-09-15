@@ -4,6 +4,7 @@ import {
   sessionRepository
 } from "@/repositories/sessionRepository";
 import { mediaRepository } from "@/repositories/mediaRepository";
+import { storageKeys } from "@/storage/storageKeys";
 import { storageProvider } from "./serviceRegistry";
 import { galleryService } from "./galleryService";
 import { zipArchiveService } from "./zipArchiveService";
@@ -249,6 +250,43 @@ export const publicGalleryService = {
    * Answers the album page's first question without revealing anything: it
    * reports only the title and that a password is required, never the media.
    */
+  /**
+   * A freshly signed URL for the session's cover, or null when there is none.
+   *
+   * Reuses the same cover choice the listing makes — a session cover if the
+   * admin set one, otherwise the pinned or automatically picked item — so a
+   * link preview shows the same image as the card the visitor clicked.
+   */
+  async getCoverUrl(sessionId: string): Promise<string | null> {
+    const session = await sessionRepository.findPublicById(sessionId);
+    if (!session) return null;
+
+    if (session.coverStorageKey) {
+      return storageProvider.getDownloadUrl(session.coverStorageKey);
+    }
+    if (session.coverImageExternalUrl) return session.coverImageExternalUrl;
+
+    const media = await mediaRepository.findAllForSession(sessionId);
+    const ready = media.filter((m) => m.processingStatus === "ready");
+    const pinned = session.coverImage
+      ? ready.find((m) => m.id === session.coverImage)
+      : undefined;
+    // Prefer the optimized derivative: it is the large, well-compressed copy,
+    // which is what a preview card wants — the thumbnail caps at 480px and
+    // reads as a small icon rather than a banner.
+    const cover =
+      pinned ??
+      ready.find((m) => m.type === "image" && m.storageKey) ??
+      ready.find((m) => m.thumbnailKey);
+    if (!cover) return null;
+
+    const key =
+      cover.type === "image" && cover.storageKey
+        ? storageKeys.optimized(sessionId, cover.id)
+        : (cover.thumbnailKey ?? cover.storageKey);
+    return key ? storageProvider.getDownloadUrl(key) : null;
+  },
+
   async getPublicGalleryAccess(sessionId: string) {
     const session = await sessionRepository.findPublicById(sessionId);
     if (!session) throw new NotFoundError("Gallery not found");
