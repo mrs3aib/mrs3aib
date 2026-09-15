@@ -15,6 +15,22 @@ function isKnownCategory(id: string) {
   return (categories as readonly string[]).includes(id);
 }
 
+/**
+ * Rebuild this page at most every five minutes.
+ *
+ * Every album card carries a cover URL signed by storage, and those signatures
+ * are valid for ten minutes. Statically generating this page without a
+ * revalidate window baked the URLs at build time and served them unchanged
+ * forever — so ten minutes after a deploy every cover 403'd and the cards fell
+ * back to the placeholder, which is what visitors saw. Re-rendering inside the
+ * signature's lifetime keeps the links live while still serving cached HTML to
+ * almost every request.
+ *
+ * Deliberately half the signature's life: a page rendered a moment before
+ * expiry must still be usable for the visitor who receives it.
+ */
+export const revalidate = 300;
+
 export function generateStaticParams() {
   return routing.locales.flatMap((locale) =>
     categories.map((id) => ({ locale, id }))

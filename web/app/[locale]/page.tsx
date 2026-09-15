@@ -22,6 +22,14 @@ import { categories as fallbackCategories } from "@/lib/data";
 import { getTranslations } from "next-intl/server";
 
 /**
+ * Rebuild at most every five minutes, for the same reason as the category
+ * page: the gallery tiles and wedding cards carry storage-signed cover URLs
+ * that expire ten minutes after they are minted, so a page baked once at build
+ * time serves links that are already dead.
+ */
+export const revalidate = 300;
+
+/**
  * How many of a picked session's photos the homepage carries.
  *
  * Opening a gallery tile browses that project in a lightbox, which is a
