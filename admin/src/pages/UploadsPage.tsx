@@ -13,6 +13,7 @@ import {
 } from "@/components/icons";
 import { MediaGrid } from "@/components/MediaGrid";
 import { SkippedUploadsNotice } from "@/components/SkippedUploadsNotice";
+import { SessionGallerySettings } from "@/components/SessionGallerySettings";
 import { SessionPicker } from "@/components/SessionPicker";
 import { YouTubeLinkCard } from "@/components/YouTubeLinkCard";
 import { useDashboardStatsQuery } from "@/hooks/useDashboardStats";
@@ -374,6 +375,23 @@ export default function UploadsPage() {
           <SkippedUploadsNotice skipped={skipped} onDismiss={() => setSkipped([])} />
 
           <YouTubeLinkCard sessionId={sessionId} />
+
+          {sessionId ? (
+            <details className="rounded-lg border border-line bg-card px-5 py-4 [&[open]>summary]:mb-2">
+              <summary className="cursor-pointer list-none">
+                <span className="block text-sm font-semibold text-primary">
+                  {t("Gallery protection", "حماية المعرض")}
+                </span>
+                <span className="mt-0.5 block text-xs text-secondary">
+                  {t(
+                    "Downloads, watermark, password, and expiry for this session.",
+                    "التنزيل والعلامة المائية وكلمة المرور وتاريخ الانتهاء لهذه الجلسة."
+                  )}
+                </span>
+              </summary>
+              <SessionGallerySettings sessionId={sessionId} />
+            </details>
+          ) : null}
         </div>
 
         <div className="space-y-5">

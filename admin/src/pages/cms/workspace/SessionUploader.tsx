@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent, type ReactNode } from "react";
 import { UploadIcon } from "@/components/icons";
 import { SkippedUploadsNotice } from "@/components/SkippedUploadsNotice";
 import { YouTubeLinkCard } from "@/components/YouTubeLinkCard";
@@ -19,10 +19,13 @@ import { formatBytes } from "@/utils/format";
  */
 export function SessionUploader({
   sessionId,
-  sessionTitle
+  sessionTitle,
+  afterYouTube
 }: {
   sessionId: string;
   sessionTitle?: string;
+  /** Session controls placed directly below the YouTube link form. */
+  afterYouTube?: ReactNode;
 }) {
   const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -169,6 +172,8 @@ export function SessionUploader({
       <SkippedUploadsNotice skipped={skipped} onDismiss={() => setSkipped([])} />
 
       <YouTubeLinkCard sessionId={sessionId} />
+
+      {afterYouTube}
 
       {items.length ? (
         <div className="rounded-lg border border-line">

@@ -49,6 +49,18 @@ export const publicMediaParamSchema = z.object({
  */
 export const publicGalleryUnlockSchema = z.object({
   params: z.object({ sessionId: z.string().min(1) }),
+  /**
+   * Paged exactly like the open gallery above.
+   *
+   * Unlocking used to answer with the entire album, so a gated session signed
+   * two URLs for every item before the visitor saw anything — the same cost the
+   * public route was paged to avoid, paid at the worst moment, right after a
+   * password was accepted.
+   */
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+    offset: z.coerce.number().int().min(0).optional()
+  }),
   body: z.object({
     password: z.string().min(1).max(200)
   })

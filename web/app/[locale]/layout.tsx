@@ -106,11 +106,20 @@ export default async function LocaleLayout({
             <HideInPreview>
               <Navbar categoryItems={categoryItems} />
             </HideInPreview>
-            {/* Bottom padding on phones only, so the fixed tab bar rests over
-                empty space rather than the last line of a section. */}
-            <main className="pb-20 md:pb-0">{children}</main>
+            <main>{children}</main>
             <FooterSection />
+            {/*
+              Clearance for the fixed tab bar, on phones only.
+
+              This used to be bottom padding on `<main>`, which put the gap in
+              the wrong place twice over: it opened a band of empty space
+              between the page and the footer, and because the footer renders
+              after `</main>` the bar still covered its last rows. Spacing the
+              end of the document instead leaves the page flush against the
+              footer and the footer fully readable above the bar.
+            */}
             <HideInPreview>
+              <div aria-hidden="true" className="h-20 md:hidden" />
               <MobileTabBar categoryItems={categoryItems} />
             </HideInPreview>
           </SmoothScroll>

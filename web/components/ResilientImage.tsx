@@ -80,14 +80,41 @@ export default function ResilientImage({
   }, [src]);
 
   /**
-   * A cached image can finish decoding before React attaches `onLoad`, and the
-   * event never fires — leaving the skeleton over a picture that is already
-   * there. `complete` is the browser's own record of that, so it catches the
-   * images that beat the listener.
+   * Reveal an image that finished before `onLoad` could be attached.
+   *
+   * A server-rendered `<img>` starts fetching as soon as the HTML is parsed,
+   * long before React hydrates. When it finishes in that gap the load event has
+   * already been and gone, so the handler below never runs and the picture sits
+   * at `opacity-0` over its own skeleton — permanently, because nothing else
+   * ever sets `loaded`.
+   *
+   * `complete` is the browser's own record of that, checked on every render so
+   * a decode that lands between two renders is still caught. `naturalWidth`
+   * separates a finished image from a broken one, which is also `complete`:
+   * treating a broken image as loaded would fade in an empty frame instead of
+   * letting `onError` fall through to the skeleton.
    */
   useEffect(() => {
-    if (imgRef.current?.complete) setLoaded(true);
-  }, [attempt, failed]);
+    const node = imgRef.current;
+    if (!node || loaded) return;
+    if (node.complete) {
+      // `complete` with no intrinsic width is a broken image, not a loaded
+      // one. Letting it fall to `onError` keeps the skeleton rather than
+      // fading in an empty frame.
+      if (node.naturalWidth > 0) setLoaded(true);
+      return;
+    }
+    /*
+     * Not finished yet. The JSX handler covers the usual case, but it is
+     * attached to a React element that may be replaced on a later render,
+     * whereas this listener is bound to the node that is actually fetching —
+     * so a decode landing while no render happens to be scheduled is still
+     * caught, without polling.
+     */
+    const onDone = () => setLoaded(true);
+    node.addEventListener("load", onDone);
+    return () => node.removeEventListener("load", onDone);
+  });
 
   const imageSrc = failed
     ? fallbackSrc
@@ -146,12 +173,35 @@ export default function ResilientImage({
         {...props}
         ref={imgRef}
         src={imageSrc}
-        // Fading in rather than appearing avoids trading a top-to-bottom wipe
-        // for a hard cut. The skeleton sits underneath until this reaches full
-        // opacity, so nothing shows through mid-fade.
-        className={`${className ?? ""} transition-opacity duration-500 ${
+        /*
+         * Fading in rather than appearing avoids trading a top-to-bottom wipe
+         * for a hard cut. The skeleton sits underneath until this reaches full
+         * opacity, so nothing shows through mid-fade.
+         *
+         * `opacity` is named alongside `transform` rather than on its own:
+         * callers pass `transition-transform` for their hover zoom, and a bare
+         * `transition-opacity` appended after it won the cascade and left the
+         * zoom snapping instead of easing. Listing both properties keeps the
+         * fade without taking the caller's animation away.
+         */
+        className={`${className ?? ""} ${
           showOverlay ? "opacity-0" : "opacity-100"
         }`}
+        /*
+         * The fade is declared here rather than as a `transition-opacity`
+         * class so it cannot be silently dropped: appended after a caller's
+         * `transition-transform`, whichever class the cascade put last won and
+         * the other property stopped animating.
+         *
+         * `transform` is carried alongside it because this element is the one
+         * callers zoom on hover, and an inline `transition` replaces the class
+         * outright. Its timing matches the `duration-[1.4s] ease-out` those
+         * callers ask for, so the zoom keeps the easing it was written with.
+         */
+        style={{
+          ...props.style,
+          transition: "opacity 500ms, transform 1.4s ease-out"
+        }}
         onLoad={(event) => {
           setLoaded(true);
           onLoad?.(event);

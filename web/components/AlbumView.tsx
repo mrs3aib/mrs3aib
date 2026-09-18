@@ -180,7 +180,22 @@ const ALBUM_PAGE_SIZE = 60;
  * Placeholder albums and password-gated ones have no session to page through,
  * and are returned untouched.
  */
-function useProgressiveAlbumPhotos(album: ResolvedAlbum): {
+/**
+ * How a view fetches one more page of media.
+ *
+ * An open album pages through the public endpoint; a gated one must re-send its
+ * password on every request, so the gate supplies its own fetcher rather than
+ * this hook reaching for a route that would answer 401.
+ */
+type MediaPager = (
+  offset: number,
+  limit: number
+) => Promise<{ photos: ResolvedPhoto[]; total: number } | null>;
+
+function useProgressiveAlbumPhotos(
+  album: ResolvedAlbum,
+  pager?: MediaPager
+): {
   photos: ResolvedPhoto[];
   loadingMore: boolean;
   /** Whether any media remains unfetched beyond what is rendered. */
@@ -209,7 +224,30 @@ function useProgressiveAlbumPhotos(album: ResolvedAlbum): {
   }, [album.sessionId]);
 
   const firstPage = album.photos.length;
-  const hasMore = Boolean(album.sessionId) && firstPage > 0 && !exhausted;
+  const loadedCount = firstPage + extra.length;
+  /**
+   * The album's own size, which the server sends with the first page.
+   *
+   * Zero means the totals are missing (a placeholder album, or an older
+   * response), and paging then relies on `exhausted` alone.
+   */
+  const total = (album.photoCount || 0) + (album.videoCount || 0);
+
+  /**
+   * Whether anything remains to fetch.
+   *
+   * `exhausted` records what the server has already said; the count check is
+   * what stops a request that is knowably pointless. Without it every album
+   * short enough to arrive complete in its first page still fired one fetch to
+   * discover there was nothing left — an album of a dozen items spun a loader
+   * and asked for rows the page already had. The counts describe exactly the
+   * media this list receives, so comparing them is safe.
+   */
+  const hasMore =
+    Boolean(album.sessionId) &&
+    firstPage > 0 &&
+    !exhausted &&
+    (total === 0 || loadedCount < total);
 
   /**
    * Guards against a second fetch starting before `loadingMore` is committed:
@@ -239,8 +277,10 @@ function useProgressiveAlbumPhotos(album: ResolvedAlbum): {
 
     void (async () => {
       try {
-        const offset = firstPage + extra.length;
-        const page = await fetchAlbumMediaPage(sessionId, offset, ALBUM_PAGE_SIZE);
+        const offset = loadedCount;
+        const page = pager
+          ? await pager(offset, ALBUM_PAGE_SIZE)
+          : await fetchAlbumMediaPage(sessionId, offset, ALBUM_PAGE_SIZE);
         /**
          * A failed request is not an exhausted album, so it leaves `exhausted`
          * alone and the sentinel may retry. Anything else settles paging from
@@ -264,7 +304,7 @@ function useProgressiveAlbumPhotos(album: ResolvedAlbum): {
         fetching.current = false;
       }
     })();
-  }, [album.sessionId, firstPage, extra.length]);
+  }, [album.sessionId, loadedCount, pager]);
 
   const photos = useMemo(() => {
     if (extra.length === 0) return album.photos;
@@ -338,7 +378,8 @@ export default function AlbumView({
   categoryLabel,
   variant,
   onBack,
-  backHref
+  backHref,
+  pager
 }: {
   album: ResolvedAlbum;
   categoryLabel: string;
@@ -347,6 +388,12 @@ export default function AlbumView({
   onBack?: () => void;
   /** Page only — where the "back to galleries" control navigates. */
   backHref?: string;
+  /**
+   * How to fetch further pages. Supplied by the password gate, whose album
+   * cannot be paged through the open endpoint. Omitted for an open album,
+   * which uses that endpoint directly.
+   */
+  pager?: MediaPager;
 }) {
   const t = useTranslations("albums");
   const [showQr, setShowQr] = useState(false);
@@ -382,7 +429,7 @@ export default function AlbumView({
     loadingMore,
     hasMore,
     loadMore
-  } = useProgressiveAlbumPhotos(album);
+  } = useProgressiveAlbumPhotos(album, pager);
   const { visiblePhotos, selectablePhotos, photoCount, videoCount } = useAlbumMedia(
     album,
     filter,
@@ -689,7 +736,14 @@ function AlbumFrame({
 }) {
   if (variant === "page") {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-black">
+      /*
+       * `min-h-svh`, not `min-h-screen`. `100vh` on a phone is the viewport
+       * *including* the browser chrome that hides as you scroll, so the frame
+       * was always taller than what is actually visible and left a band of dead
+       * black between the album and the footer. `svh` is the small viewport
+       * height — the space that is really there.
+       */
+      <div className="relative min-h-svh overflow-hidden bg-black">
         {/*
           Pinned to the viewport, not the document. `absolute inset-0` stretched
           the backdrop over the album's full scroll height, so `bg-cover` scaled
