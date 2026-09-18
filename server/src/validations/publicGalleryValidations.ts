@@ -28,7 +28,9 @@ export const publicSessionParamSchema = z.object({
    * Omitted by the album page, which genuinely needs everything.
    */
   query: z.object({
-    limit: z.coerce.number().int().min(1).max(200).optional()
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+    /** Where this page starts, so the grid can fetch the rest after paint. */
+    offset: z.coerce.number().int().min(0).optional()
   })
 });
 

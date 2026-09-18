@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { Link } from "@/i18n/navigation";
@@ -12,7 +12,8 @@ import {
   publicSelectionZipUrl,
   publicSingleDownloadUrl,
   type ResolvedAlbum,
-  type ResolvedPhoto
+  type ResolvedPhoto,
+  fetchAlbumMediaPage
 } from "@/lib/api";
 import { triggerDownload } from "@/lib/download";
 import {
@@ -158,7 +159,135 @@ function useAlbumUrl(album: ResolvedAlbum) {
   return albumUrl;
 }
 
-function useAlbumMedia(album: ResolvedAlbum, filter: MediaFilter) {
+/**
+ * How many items each follow-up request pulls.
+ *
+ * Larger than the server-rendered first page: by the time these run the page
+ * is already interactive, so the cost is a background fetch rather than time
+ * to first paint. Small enough that one slow response does not hold back
+ * everything behind it.
+ */
+const ALBUM_PAGE_SIZE = 60;
+
+/**
+ * The album's photos, starting from what the server rendered and filling in
+ * the rest from the browser.
+ *
+ * The page now ships only a first page of media so it can paint quickly; the
+ * remainder arrives here. Pages are appended in order, so the grid grows
+ * downward and nothing already on screen moves.
+ *
+ * Placeholder albums and password-gated ones have no session to page through,
+ * and are returned untouched.
+ */
+function useProgressiveAlbumPhotos(album: ResolvedAlbum): {
+  photos: ResolvedPhoto[];
+  loadingMore: boolean;
+  /** Whether any media remains unfetched beyond what is rendered. */
+  hasMore: boolean;
+  /** Fetch the next page; called as the grid's end comes into view. */
+  loadMore: () => void;
+} {
+  const [extra, setExtra] = useState<ResolvedPhoto[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  /**
+   * Whether the server has said there is nothing left.
+   *
+   * Paging used to stop by comparing what had loaded against the album's photo
+   * and video counts. Those describe the album; what loads here is what the
+   * grid can render, and any gap between the two left `hasMore` permanently
+   * true — a spinner that never cleared and a fetch that refired every time the
+   * sentinel came back into view. A page that comes back short is the server
+   * saying it has reached the end, which cannot drift from any count.
+   */
+  const [exhausted, setExhausted] = useState(false);
+
+  // A different album must not inherit the previous one's tail.
+  useEffect(() => {
+    setExtra([]);
+    setExhausted(false);
+  }, [album.sessionId]);
+
+  const firstPage = album.photos.length;
+  const hasMore = Boolean(album.sessionId) && firstPage > 0 && !exhausted;
+
+  /**
+   * Guards against a second fetch starting before `loadingMore` is committed:
+   * the observer can fire twice within a frame, and state set in the first
+   * callback is not visible to the second.
+   */
+  const fetching = useRef(false);
+
+  useEffect(() => {
+    fetching.current = false;
+  }, [album.sessionId]);
+
+  /**
+   * Fetch the next page.
+   *
+   * This used to run as a loop that pulled the whole album the moment it
+   * mounted, so a large session mounted every tile at once — hundreds of image
+   * elements, each with its own transitions and a pulsing skeleton, all paying
+   * layout and paint on every scroll frame. Pages are now pulled only as the
+   * reader approaches the end of what is already rendered.
+   */
+  const loadMore = useCallback(() => {
+    const sessionId = album.sessionId;
+    if (!sessionId || fetching.current) return;
+    fetching.current = true;
+    setLoadingMore(true);
+
+    void (async () => {
+      try {
+        const offset = firstPage + extra.length;
+        const page = await fetchAlbumMediaPage(sessionId, offset, ALBUM_PAGE_SIZE);
+        /**
+         * A failed request is not an exhausted album, so it leaves `exhausted`
+         * alone and the sentinel may retry. Anything else settles paging from
+         * what the server actually sent rather than from a predicted total.
+         */
+        if (!page) return;
+        if (page.photos.length > 0) {
+          setExtra((current) => [...current, ...page.photos]);
+        }
+        // Short page means the end. `total` is checked too so an album whose
+        // length divides exactly by the page size does not need one extra
+        // empty round trip to notice it has finished.
+        if (
+          page.photos.length < ALBUM_PAGE_SIZE ||
+          offset + page.photos.length >= page.total
+        ) {
+          setExhausted(true);
+        }
+      } finally {
+        setLoadingMore(false);
+        fetching.current = false;
+      }
+    })();
+  }, [album.sessionId, firstPage, extra.length]);
+
+  const photos = useMemo(() => {
+    if (extra.length === 0) return album.photos;
+    // A retry or a StrictMode double-run can deliver the same page twice; the
+    // key is the media id, so de-duplicating here keeps React keys unique.
+    const seen = new Set(album.photos.map((photo) => photo.key));
+    const merged = [...album.photos];
+    for (const photo of extra) {
+      if (seen.has(photo.key)) continue;
+      seen.add(photo.key);
+      merged.push(photo);
+    }
+    return merged;
+  }, [album.photos, extra]);
+
+  return { photos, loadingMore, hasMore, loadMore };
+}
+
+function useAlbumMedia(
+  album: ResolvedAlbum,
+  filter: MediaFilter,
+  allPhotos: ResolvedPhoto[]
+) {
   /**
    * The items the grid is showing. Everything downstream — select-all, the
    * lightbox's next/previous, the counts — works off this rather than the full
@@ -166,13 +295,13 @@ function useAlbumMedia(album: ResolvedAlbum, filter: MediaFilter) {
    */
   const visiblePhotos = useMemo(() => {
     if (filter === "photos") {
-      return album.photos.filter((p) => p.type !== "video");
+      return allPhotos.filter((p) => p.type !== "video");
     }
     if (filter === "videos") {
-      return album.photos.filter((p) => p.type === "video");
+      return allPhotos.filter((p) => p.type === "video");
     }
-    return album.photos;
-  }, [album.photos, filter]);
+    return allPhotos;
+  }, [allPhotos, filter]);
 
   /**
    * Linked videos are watched on YouTube and have no file behind them, so they
@@ -184,8 +313,22 @@ function useAlbumMedia(album: ResolvedAlbum, filter: MediaFilter) {
     [visiblePhotos]
   );
 
-  const photoCount = album.photos.filter((p) => p.type !== "video").length;
-  const videoCount = album.photos.filter((p) => p.type === "video").length;
+  /**
+   * The album's own totals win over counting what is loaded.
+   *
+   * The grid now starts with a first page and fills in the rest, so counting
+   * `album.photos` would show the page size — "10 photos" on an album of seven
+   * hundred — and climb as more arrived. `album.photoCount` comes from the
+   * server and describes the whole album.
+   *
+   * The server counts only media it could actually hand over, which is the same
+   * set the grid renders, so the header and the tile count now agree. They are
+   * counted from one list server-side precisely so they cannot drift again.
+   */
+  const loadedPhotos = allPhotos.filter((p) => p.type !== "video").length;
+  const loadedVideos = allPhotos.filter((p) => p.type === "video").length;
+  const photoCount = album.photoCount || loadedPhotos;
+  const videoCount = album.videoCount || loadedVideos;
 
   return { visiblePhotos, selectablePhotos, photoCount, videoCount };
 }
@@ -229,9 +372,21 @@ export default function AlbumView({
     formattedDate
   } = useAlbumMeta(album, categoryLabel);
   const albumUrl = useAlbumUrl(album);
+  /**
+   * The server rendered a first page; the rest streams in here. Everything
+   * downstream reads `allPhotos`, so the grid, the lightbox and "select all"
+   * all grow together as pages land.
+   */
+  const {
+    photos: allPhotos,
+    loadingMore,
+    hasMore,
+    loadMore
+  } = useProgressiveAlbumPhotos(album);
   const { visiblePhotos, selectablePhotos, photoCount, videoCount } = useAlbumMedia(
     album,
-    filter
+    filter,
+    allPhotos
   );
 
   const labels: AlbumActionLabels = {
@@ -466,7 +621,10 @@ export default function AlbumView({
         onViewModeChange={setViewMode}
         photoCount={photoCount}
         videoCount={videoCount}
-        totalCount={album.photos.length}
+        // The album's size, not how much of it has paged in. This used to be
+        // `allPhotos.length`, which climbed as the reader scrolled and
+        // disagreed with the per-kind counts beside it.
+        totalCount={photoCount + videoCount}
         selectedCount={selectedKeys.length}
         allSelected={allSelected}
         downloadState={downloadState}
@@ -483,6 +641,9 @@ export default function AlbumView({
         selectedKeys={selectedKeys}
         onToggleSelected={toggleSelected}
         onOpen={(index) => setLightboxIndex(index)}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
       />
     </>
   );
@@ -670,6 +831,12 @@ function AlbumPreview({
                 className="object-cover"
                 priority
                 unoptimized={album.isLive}
+                // One frame, and the first thing on the page, so it is worth
+                // animating rather than leaving as a flat block.
+                shimmer
+                {...(album.coverPreviewDataUrl
+                  ? { previewDataUrl: album.coverPreviewDataUrl }
+                  : {})}
               />
               {album.watermarkUrl ? (
                 <img
@@ -741,21 +908,18 @@ function AlbumSummary({
   allowDownloads: boolean;
 }) {
   /**
-   * Counts come from the session summary, which the listing already supplied,
-   * not from `album.photos` — that array is empty until the media request
-   * lands, so reading it here rendered "0 photos" next to a correct video
-   * count for as long as the fetch took.
+   * The server's totals, never a count of what has arrived.
    *
-   * Once the media arrives the loaded array is authoritative: it reflects what
-   * is actually renderable, which is what the grid below shows.
+   * `album.photos` used to be the whole album, so counting it here was a way of
+   * reporting exactly what the grid could render. It is now only the first
+   * page, and counting it announced the page size as the album size — "12
+   * photos" on an album of seven hundred.
+   *
+   * The server counts the same displayable media it serves, so these already
+   * describe what the grid will show once it has finished paging.
    */
-  const loaded = album.photos.length > 0;
-  const photoCount = loaded
-    ? album.photos.filter((p) => p.type !== "video").length
-    : album.photoCount;
-  const videoCount = loaded
-    ? album.photos.filter((p) => p.type === "video").length
-    : album.videoCount;
+  const photoCount = album.photoCount;
+  const videoCount = album.videoCount;
 
   return (
     <div className="flex flex-col justify-center text-center lg:col-span-6 lg:rtl:[direction:rtl]">
@@ -1022,7 +1186,10 @@ function AlbumPhotoGrid({
   viewMode,
   selectedKeys,
   onToggleSelected,
-  onOpen
+  onOpen,
+  loadingMore,
+  hasMore,
+  onLoadMore
 }: {
   album: ResolvedAlbum;
   photos: ResolvedPhoto[];
@@ -1031,6 +1198,12 @@ function AlbumPhotoGrid({
   selectedKeys: string[];
   onToggleSelected: (key: string) => void;
   onOpen: (index: number) => void;
+  /** Whether further pages of media are still arriving. */
+  loadingMore: boolean;
+  /** Whether any media remains unfetched beyond what is rendered. */
+  hasMore: boolean;
+  /** Ask for the next page; called as the grid's end comes into view. */
+  onLoadMore: () => void;
 }) {
   const t = useTranslations("albums");
   const [failed, setFailed] = useState<string | null>(null);
@@ -1064,6 +1237,30 @@ function AlbumPhotoGrid({
     }
   };
 
+  /**
+   * Pull the next page as the end of the grid comes into view.
+   *
+   * `rootMargin` starts the fetch a screen early so the next tiles are usually
+   * decoded by the time they are scrolled to, rather than the reader hitting a
+   * blank run and waiting. The observer is the only thing driving paging, so
+   * nothing is fetched for an album the reader never scrolls through.
+   */
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
+      },
+      { rootMargin: "800px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore]);
+
   if (photos.length === 0) {
     return (
       <p className="mt-8 text-center text-sm text-secondary">{t("empty")}</p>
@@ -1073,6 +1270,7 @@ function AlbumPhotoGrid({
   const isRows = viewMode === "rows";
 
   return (
+    <>
     <div
       className={
         isRows
@@ -1090,6 +1288,21 @@ function AlbumPhotoGrid({
             } ${
               selected ? "ring-2 ring-black ring-offset-2 ring-offset-accent" : ""
             }`}
+            /*
+             * The grid only ever appends, so a long album ends up holding every
+             * tile it has scrolled past — each one still paying style and paint
+             * on every frame. `content-visibility` lets the browser skip that
+             * work entirely for tiles outside the viewport.
+             *
+             * The intrinsic size is what it reserves for a skipped tile. A grid
+             * tile derives its own height from `aspect-[4/3]`, so only the row
+             * layout's fixed 7rem needs stating; guessing wrong there would
+             * shift the scrollbar as tiles entered and left.
+             */
+            style={{
+              contentVisibility: "auto",
+              ...(isRows ? { containIntrinsicSize: "auto 7rem" } : {})
+            }}
           >
             {/* The tile itself opens the viewer. A button rather than a bare
                 div so it is reachable by keyboard. */}
@@ -1102,7 +1315,16 @@ function AlbumPhotoGrid({
               }`}
             >
               <ResilientImage
-                src={photo.url}
+                /*
+                 * Only a real thumbnail. Without a generated one `photo.url`
+                 * falls back to the original file, and a grid of those pulls
+                 * tens of megabytes to fill tiles a few hundred pixels wide.
+                 * An unrenderable item already gives an empty frame, and
+                 * passing no source takes the same path.
+                 */
+                src={
+                  photo.isPlaceholder || photo.hasThumbnail ? photo.url : null
+                }
                 alt={`${title} ${index + 1}`}
                 fill
                 sizes={isRows ? "176px" : "(max-width: 640px) 50vw, 20vw"}
@@ -1110,6 +1332,19 @@ function AlbumPhotoGrid({
                 // Signed backend URLs are already sized and expire, so routing them
                 // through the Next optimizer would only add a cache that outlives them.
                 unoptimized={!photo.isPlaceholder}
+                // Gives the tile this photograph's own colours while the real
+                // thumbnail is still decoding, rather than a grey block.
+                {...(photo.previewDataUrl
+                  ? { previewDataUrl: photo.previewDataUrl }
+                  : {})}
+                // Stated rather than left to the default: no tile here is ever
+                // above the fold on a scrolled album, and a fast scroll through
+                // a large one would otherwise start decoding far more than it
+                // shows.
+                loading="lazy"
+                // Decoding off the main thread, so an arriving thumbnail cannot
+                // block the frame the reader is scrolling through.
+                decoding="async"
               />
               {album.watermarkUrl ? (
                 <img
@@ -1147,7 +1382,14 @@ function AlbumPhotoGrid({
 
             {photo.type === "video" ? (
               <span
-                className={`pointer-events-none absolute flex items-center justify-center rounded text-white backdrop-blur-md ${
+                /*
+                 * No `backdrop-blur`. Every tile carries this badge, its
+                 * checkbox and its download button, so a grid of a few hundred
+                 * ran that many backdrop filters — each re-sampling what is
+                 * behind it on every scrolled frame. An opaque fill over a
+                 * photograph looks the same and costs nothing to composite.
+                 */
+                className={`pointer-events-none absolute flex items-center justify-center rounded text-white ${
                   // YouTube's own red marks a linked video as something that
                   // plays off-site, distinguishing it from an uploaded clip.
                   photo.youTubeId ? "bg-[#ff0000]/85" : "bg-black/55"
@@ -1171,10 +1413,10 @@ function AlbumPhotoGrid({
               className="absolute start-2 top-2 z-10"
             >
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded border text-xs backdrop-blur-md transition-colors ${
+                className={`flex h-6 w-6 items-center justify-center rounded border text-xs transition-colors ${
                   selected
                     ? "border-black bg-black text-accent"
-                    : "border-white/70 bg-black/35 text-transparent hover:bg-black/55"
+                    : "border-white/70 bg-black/55 text-transparent hover:bg-black/70"
                 }`}
               >
                 ✓
@@ -1190,7 +1432,7 @@ function AlbumPhotoGrid({
                   void onDownloadPhoto(photo, index);
                 }}
                 aria-label={`${t("downloadSelected")} ${index + 1}`}
-                className="touch-reveal absolute end-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded bg-black/50 text-white opacity-0 backdrop-blur-md transition-opacity duration-300 group-hover:opacity-100 group-active:opacity-100 group-focus-within:opacity-100"
+                className="touch-reveal absolute end-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded bg-black/65 text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-active:opacity-100 group-focus-within:opacity-100"
               >
                 <DownloadIcon className="h-3.5 w-3.5" />
               </button>
@@ -1204,6 +1446,43 @@ function AlbumPhotoGrid({
           </div>
         );
       })}
+
+      {/*
+        Watched by the observer above. It spans the grid so it is reached on
+        the same scroll that exhausts the last row, in either layout.
+      */}
+      {hasMore ? (
+        <div
+          ref={sentinelRef}
+          aria-hidden="true"
+          className={isRows ? "h-1" : "col-span-full h-1"}
+        />
+      ) : null}
     </div>
+
+    {/*
+      One spinner under the grid, rather than a run of placeholder tiles inside
+      it.
+
+      The tiles were a guess at how much was coming and sat in the grid flow, so
+      a page that landed short left the album ending on empty frames. A single
+      indicator below the last row says "more is on the way" without implying a
+      count, and it occupies the same spot every time so the eye can rest on it
+      while scrolling.
+    */}
+    {loadingMore ? (
+      <div
+        className="flex items-center justify-center gap-3 py-8 text-sm text-secondary"
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          aria-hidden="true"
+          className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-accent"
+        />
+        {t("loadingMore")}
+      </div>
+    ) : null}
+    </>
   );
 }

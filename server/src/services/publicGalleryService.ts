@@ -30,6 +30,8 @@ type CoverCandidate = {
   externalId: string | null;
   thumbnailKey: string | null;
   storageKey: string | null;
+  /** Blur-up preview, shown on the card while the signed cover loads. */
+  previewDataUrl: string | null;
 };
 
 /**
@@ -166,7 +168,15 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
     eventDate: session.eventDate.toISOString(),
     location: session.location,
     description: session.description,
-    photoCount: session._count.media,
+    /**
+     * Counted over the media rows the card actually has, filtered the same way
+     * the gallery filters its own — an item with no thumbnail and no file
+     * cannot be rendered, so counting it announced more photos than the album
+     * would ever show.
+     */
+    photoCount: ready.filter(
+      (m) => m.type === "image" && (m.thumbnailKey ?? m.storageKey)
+    ).length,
     videoCount,
     /**
      * Which media item the cover actually is — the pinned one, or the same
@@ -183,6 +193,14 @@ async function toAlbumSummary(session: ListedSession, videoCount: number) {
      * picture that cannot play.
      */
     coverType: chosenCoverUrl ? "image" : (cover?.type ?? null),
+    /**
+     * Blur-up preview for the card, so it carries the cover's own colours while
+     * the signed image loads instead of sitting as an empty rectangle.
+     *
+     * Only when the cover is one of the album's own images: a session cover is
+     * a separate upload with no preview generated for it.
+     */
+    coverPreviewDataUrl: chosenCoverUrl ? null : (cover?.previewDataUrl ?? null),
     /**
      * Playable source for a video cover. `coverUrl` stays the poster frame, so
      * the site has something to show before playback starts. A linked video has
@@ -251,40 +269,53 @@ export const publicGalleryService = {
    * reports only the title and that a password is required, never the media.
    */
   /**
-   * A freshly signed URL for the session's cover, or null when there is none.
+   * Where the session's share image lives, or null when it has none.
    *
-   * Reuses the same cover choice the listing makes — a session cover if the
-   * admin set one, otherwise the pinned or automatically picked item — so a
-   * link preview shows the same image as the card the visitor clicked.
+   * The order is the same one every album card uses, so a link preview shows
+   * the picture the visitor would see on the site:
+   *
+   *   1. the cover the admin uploaded for the session (`coverStorageKey`)
+   *   2. an externally hosted cover they pasted (`coverImageExternalUrl`)
+   *   3. the media item they pinned as cover, or the automatic pick
+   *
+   * Returns a storage key rather than a signed URL: the caller serves the
+   * bytes itself, because a link-preview crawler is handed this address and a
+   * signed URL would be expired by the time it asked. `externalUrl` is the one
+   * case with no key of ours — it is someone else's file, served as given.
    */
-  async getCoverUrl(sessionId: string): Promise<string | null> {
+  async getCoverSource(
+    sessionId: string
+  ): Promise<{ key: string } | { externalUrl: string } | null> {
     const session = await sessionRepository.findPublicById(sessionId);
     if (!session) return null;
 
-    if (session.coverStorageKey) {
-      return storageProvider.getDownloadUrl(session.coverStorageKey);
+    if (session.coverStorageKey) return { key: session.coverStorageKey };
+    if (session.coverImageExternalUrl) {
+      return { externalUrl: session.coverImageExternalUrl };
     }
-    if (session.coverImageExternalUrl) return session.coverImageExternalUrl;
 
     const media = await mediaRepository.findAllForSession(sessionId);
     const ready = media.filter((m) => m.processingStatus === "ready");
     const pinned = session.coverImage
       ? ready.find((m) => m.id === session.coverImage)
       : undefined;
-    // Prefer the optimized derivative: it is the large, well-compressed copy,
-    // which is what a preview card wants — the thumbnail caps at 480px and
-    // reads as a small icon rather than a banner.
     const cover =
       pinned ??
       ready.find((m) => m.type === "image" && m.storageKey) ??
       ready.find((m) => m.thumbnailKey);
     if (!cover) return null;
 
+    /**
+     * The optimized derivative, not the thumbnail: it is the large,
+     * well-compressed copy a preview card wants. The thumbnail caps at 480px,
+     * which several crawlers treat as too small for a large card and render as
+     * a side icon instead.
+     */
     const key =
       cover.type === "image" && cover.storageKey
         ? storageKeys.optimized(sessionId, cover.id)
         : (cover.thumbnailKey ?? cover.storageKey);
-    return key ? storageProvider.getDownloadUrl(key) : null;
+    return key ? { key } : null;
   },
 
   async getPublicGalleryAccess(sessionId: string) {
@@ -309,7 +340,12 @@ export const publicGalleryService = {
     };
   },
 
-  async getPublicGallery(sessionId: string, password?: string, limit?: number) {
+  async getPublicGallery(
+    sessionId: string,
+    password?: string,
+    limit?: number,
+    offset?: number
+  ) {
     // Only the published check is needed here — `getGallery` re-reads the
     // session and enforces expiry itself, so repeating either would cost two
     // extra round trips to a remote database for no added protection.
@@ -326,7 +362,7 @@ export const publicGalleryService = {
       }
     }
 
-    return galleryService.getGallery(sessionId, limit);
+    return galleryService.getGallery(sessionId, limit, offset);
   },
 
   /** Signed URL for one original file in a public session. */

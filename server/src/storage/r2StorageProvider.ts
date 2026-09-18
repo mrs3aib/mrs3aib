@@ -22,7 +22,21 @@ import type { StorageProvider, StoredObject } from "./storageProvider";
  * connection, and the URL still only permits writing one object key.
  */
 const DEFAULT_UPLOAD_URL_TTL_SECONDS = env.UPLOAD_URL_TTL_SECONDS ?? 2 * 60 * 60;
-const DEFAULT_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
+/**
+ * How long a signed download URL stays valid.
+ *
+ * This has to outlive the cache in front of it, not just the request that mints
+ * it. The site caches a gallery response for five minutes, so at the previous
+ * ten a visitor served that response in its final second held URLs with barely
+ * five minutes left — and a gallery still scrolling when they lapsed failed
+ * every remaining image at once, which looked like the whole album breaking
+ * rather than a signature ageing out.
+ *
+ * An hour keeps a wide margin over that cache window and over the time someone
+ * plausibly spends scrolling one album. These URLs are read-only and scoped to
+ * a single object key.
+ */
+const DEFAULT_DOWNLOAD_URL_TTL_SECONDS = 60 * 60;
 
 /** Multipart chunk size. The S3 minimum for a non-final part is 5 MiB. */
 const UPLOAD_PART_SIZE_BYTES = 8 * 1024 * 1024;

@@ -93,7 +93,7 @@ publicGalleryRouter.get(
 publicGalleryRouter.get(
   "/sessions/:sessionId/cover",
   validate(publicSessionParamSchema),
-  asyncHandler(publicGalleryController.getCoverRedirect)
+  asyncHandler(publicGalleryController.getCover)
 );
 
 publicGalleryRouter.get(

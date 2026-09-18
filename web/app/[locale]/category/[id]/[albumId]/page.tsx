@@ -12,6 +12,15 @@ import { redirect } from "@/i18n/navigation";
 import AlbumView from "@/components/AlbumView";
 import AlbumPasswordGate from "@/components/AlbumPasswordGate";
 
+/**
+ * Media items rendered server-side, before the grid fills in the rest.
+ *
+ * Enough to cover the first screen at every breakpoint — the grid is five
+ * columns on a wide viewport — so the visitor never sees an empty grid, but
+ * small enough that the page is sent in well under a second.
+ */
+const ALBUM_FIRST_PAGE_SIZE = 12;
+
 function isKnownCategory(id: string) {
   return (categories as readonly string[]).includes(id);
 }
@@ -85,13 +94,16 @@ export async function generateMetadata({
               {
                 url: image,
                 /**
-                 * Declared so the crawler can pick the large card without
-                 * downloading and measuring the file first. WhatsApp falls
-                 * back to the small thumbnail layout when it cannot establish
-                 * that the image clears its size threshold.
+                 * No `width`/`height` declared.
+                 *
+                 * Covers are whatever shape the admin uploaded — the current
+                 * one is 2048x1365 — and announcing a 1200x630 that does not
+                 * match the file gives the crawler contradictory information,
+                 * which is one of the ways WhatsApp ends up rendering the
+                 * small side-thumbnail card. The endpoint sends a correct
+                 * `Content-Type` and the real bytes, so the crawler measures
+                 * it and picks the large layout on its own.
                  */
-                width: 1200,
-                height: 630,
                 alt: album.title
               }
             ]
@@ -176,7 +188,21 @@ export default async function AlbumPage({
     );
   }
 
-  const album = await resolveAlbumById(id as CategoryId, albumId);
+  /**
+   * Only a first page is rendered on the server.
+   *
+   * Resolving the whole album meant the backend signed two URLs for every item
+   * before the page could be sent — on a seven-hundred-photo session that is
+   * over two thousand signatures and a 2.7 MB document, and nothing appeared
+   * until all of it was ready. The grid fetches the remainder from the browser
+   * once the first screen is painted, so the cover and the opening rows show
+   * immediately.
+   */
+  const album = await resolveAlbumById(
+    id as CategoryId,
+    albumId,
+    ALBUM_FIRST_PAGE_SIZE
+  );
   if (!album) notFound();
 
   return (

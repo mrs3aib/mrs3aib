@@ -184,6 +184,15 @@ model Media {
   /// download and ZIP paths treat a missing key as "not downloadable".
   storageKey       String?
   thumbnailKey     String?
+  /// A ~20px WebP of this image, inlined as a data URI, shown blurred while the
+  /// real thumbnail loads.
+  ///
+  /// Stored on the row rather than as a third storage object: at this size the
+  /// bytes are smaller than the signed URL that would point at them, and a
+  /// separate object would mean a third sign per tile on every gallery read.
+  /// Null for videos, for linked items, and for anything processed before this
+  /// existed — the grid falls back to its plain skeleton.
+  previewDataUrl   String?
   /// Null for `youtube` items — there is no file, so no MIME type or byte size.
   mimeType         String?
   size             Int?

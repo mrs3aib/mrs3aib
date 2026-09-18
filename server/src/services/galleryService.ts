@@ -27,6 +27,24 @@ function toMediaDto(media: Media): MediaDto {
   };
 }
 
+/**
+ * Whether an item has anything the gallery could actually put on screen.
+ *
+ * A row can be `ready` and still be unrenderable — an import with no thumbnail
+ * and no file behind it, say. The site already dropped those from the grid, but
+ * the totals counted every ready row, so an album of 500 with three such rows
+ * announced "500 photos" over 497 tiles and paged forever looking for the rest.
+ *
+ * This is the one definition of displayable, applied to the counts and to the
+ * media list alike so the two cannot disagree.
+ */
+function isDisplayable(media: Media): boolean {
+  // A linked video is rendered from its YouTube id; it has no file of ours and
+  // needs none.
+  if (media.source === "youtube") return Boolean(media.externalId);
+  return Boolean(media.thumbnailKey ?? media.storageKey);
+}
+
 export const galleryService = {
   async assertGalleryAccessible(sessionId: string): Promise<void> {
     const settings = await gallerySettingsRepository.findBySessionId(sessionId);
@@ -35,7 +53,7 @@ export const galleryService = {
     }
   },
 
-  async getGallery(sessionId: string, limit?: number) {
+  async getGallery(sessionId: string, limit?: number, offset = 0) {
     /**
      * The three reads do not depend on each other, so they go out together.
      * Run in sequence they cost three round trips to a remote database, which
@@ -55,14 +73,29 @@ export const galleryService = {
       throw new ForbiddenError("This gallery has expired");
     }
 
-    const allReady = media.filter((m) => m.processingStatus === "ready");
+    /**
+     * Counted and paged over the same list the response draws from, so the
+     * totals always describe exactly what the grid can render. Deriving them
+     * from a separate count query let the two drift: anything ready but
+     * unrenderable inflated the total, and the site paged for items that were
+     * never going to arrive.
+     */
+    const allReady = media.filter(
+      (m) => m.processingStatus === "ready" && isDisplayable(m)
+    );
+    const counts = {
+      photoCount: allReady.filter((m) => m.type === "image").length,
+      videoCount: allReady.filter((m) => m.type === "video").length
+    };
     /**
      * Signing is per item and happens below, so the cap is applied here rather
      * than after: the point is to not sign what the caller will not use. The
      * media list keeps its picked order, so a limited response is the first N
      * of the album rather than an arbitrary subset.
      */
-    const readyMedia = limit ? allReady.slice(0, limit) : allReady;
+    const readyMedia = limit
+      ? allReady.slice(offset, offset + limit)
+      : allReady.slice(offset);
 
     const [coverUrl, withUrls] = await Promise.all([
       // A custom session cover has priority over every media item. Sign it with
@@ -93,7 +126,13 @@ export const galleryService = {
            */
           sourceUrl: item.storageKey
             ? await storageProvider.getDownloadUrl(item.storageKey)
-            : null
+            : null,
+          /**
+           * Blur-up preview, inlined rather than signed. Null for videos and
+           * for anything processed before previews existed; the grid falls back
+           * to its plain skeleton for those.
+           */
+          previewDataUrl: item.previewDataUrl
         }))
       )
     ]);
@@ -114,7 +153,20 @@ export const galleryService = {
         /** Media id pinned as the cover, so the site can feature it. */
         coverImage: session.coverImage,
         /** A separately uploaded or externally hosted still for the session. */
-        coverUrl
+        coverUrl,
+        /**
+         * Totals for the whole album, not for this page of it. The album view
+         * shows "N photos" before it has loaded them all, and the grid needs
+         * to know whether more remain to fetch.
+         */
+        photoCount: counts.photoCount,
+        videoCount: counts.videoCount
+      },
+      /** Where this page started and how many items are in the album overall. */
+      page: {
+        offset,
+        returned: readyMedia.length,
+        total: allReady.length
       },
       settings: {
         // Sent so the gallery can hide its download controls rather than

@@ -35,7 +35,10 @@ export const pageContentController = {
   },
 
   async getPublished(req: Request, res: Response): Promise<void> {
-    const page = await pageContentService.getPublished(req.params.pageKey as string);
+    const page = await pageContentService.getPublished(
+      req.params.pageKey as string,
+      requestOrigin(req)
+    );
     if (!page) {
       res.status(204).send();
       return;

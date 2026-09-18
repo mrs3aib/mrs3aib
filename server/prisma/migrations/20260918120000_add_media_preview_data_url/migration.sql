@@ -1,0 +1,11 @@
+-- A tiny blurred stand-in for each image, shown while its real thumbnail loads.
+--
+-- Nullable with no default: existing rows keep NULL and the gallery falls back
+-- to the plain skeleton it already showed, so nothing needs backfilling before
+-- this ships. Images processed from here on fill it in on upload; to give older
+-- albums the blur-up, re-run processing for them.
+--
+-- Stored on the row rather than as a separate object in storage: at ~20px the
+-- encoded bytes are smaller than a signed URL pointing at them would be, and a
+-- separate object would mean a third signature per tile on every gallery read.
+ALTER TABLE "media" ADD COLUMN "previewDataUrl" TEXT;

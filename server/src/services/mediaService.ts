@@ -237,6 +237,9 @@ export const mediaService = {
           width: result.width,
           height: result.height,
           thumbnailKey,
+          // Inlined on the row; see the schema note on why this is not a third
+          // storage object.
+          previewDataUrl: result.previewDataUrl,
           processingStatus: "ready"
         });
         return toDto(updated);
