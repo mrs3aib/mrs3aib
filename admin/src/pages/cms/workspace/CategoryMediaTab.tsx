@@ -93,28 +93,30 @@ export function CategoryMediaTab({
       {selected ? (
         <>
           <SessionCoverField session={selected} />
-          <SessionUploader sessionId={selected.id} sessionTitle={selected.title} />
+          <SessionUploader
+            sessionId={selected.id}
+            sessionTitle={selected.title}
+            afterYouTube={
+              <details className="rounded-lg border border-line bg-card px-5 py-4 [&[open]>summary]:mb-2">
+                <summary className="cursor-pointer list-none">
+                  <span className="block text-sm font-semibold text-primary">
+                    {t("Gallery protection", "حماية المعرض")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-secondary">
+                    {t(
+                      "Downloads, watermark, password, and expiry for this session.",
+                      "التنزيل والعلامة المائية وكلمة المرور وتاريخ الانتهاء لهذه الجلسة."
+                    )}
+                  </span>
+                </summary>
+                <SessionGallerySettings sessionId={selected.id} />
+              </details>
+            }
+          />
           <div className="rounded-lg border border-line p-5">
             <MediaGrid sessionId={selected.id} coverImage={selected.coverImage} />
           </div>
 
-          {/* The same form the Settings page shows, on the session already in
-              hand here — collapsed so it does not push the media grid down for
-              the common case of only uploading. */}
-          <details className="rounded-lg border border-line bg-card px-5 py-4 [&[open]>summary]:mb-2">
-            <summary className="cursor-pointer list-none">
-              <span className="block text-sm font-semibold text-primary">
-                {t("Gallery protection", "حماية المعرض")}
-              </span>
-              <span className="mt-0.5 block text-xs text-secondary">
-                {t(
-                  "Downloads, watermark, password, and expiry for this session.",
-                  "التنزيل والعلامة المائية وكلمة المرور وتاريخ الانتهاء لهذه الجلسة."
-                )}
-              </span>
-            </summary>
-            <SessionGallerySettings sessionId={selected.id} />
-          </details>
         </>
       ) : (
         <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-sm text-secondary">

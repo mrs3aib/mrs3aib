@@ -486,15 +486,33 @@ export const fetchAlbumAccess = cache(fetchAlbumAccessUncached);
  * through `safeGet` — the caller needs to tell a wrong password (401) apart
  * from a failure, which `safeGet` flattens to `null`.
  */
+/**
+ * Items an unlock brings back with it.
+ *
+ * Matches the album page's own first page, so a gated album renders the same
+ * opening screen an open one does and pages in the rest identically.
+ */
+export const ALBUM_UNLOCK_PAGE_SIZE = 12;
+
 export async function unlockAlbum(
   category: CategoryId,
   albumId: string,
-  password: string
+  password: string,
+  /**
+   * How many items to bring back with the unlock.
+   *
+   * Unlocking used to return the entire album, so a gated session of several
+   * hundred photos signed two URLs per item before anything could render — the
+   * visitor watched a spinner immediately after typing the right password. The
+   * grid pages in the remainder itself, exactly as it does for an open album.
+   */
+  limit?: number
 ): Promise<
   { ok: true; album: ResolvedAlbum } | { ok: false; reason: "wrong" | "error" }
 > {
   try {
-    const res = await fetch(`${API_BASE}/public/sessions/${albumId}/unlock`, {
+    const query = limit ? `?limit=${limit}` : "";
+    const res = await fetch(`${API_BASE}/public/sessions/${albumId}/unlock${query}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ password }),
@@ -559,11 +577,54 @@ export async function fetchAlbumMediaPage(
   );
   if (!payload) return null;
 
+  return mediaPageFromPayload(payload);
+}
+
+/** Shared by the open and gated page fetches, which differ only in transport. */
+function mediaPageFromPayload(payload: GalleryPayload): {
+  photos: ResolvedPhoto[];
+  total: number;
+} {
   const visible = payload.media.filter((m) => m.thumbnailUrl || m.sourceUrl);
   return {
     photos: visible.map(toResolvedPhoto),
     total: payload.page?.total ?? visible.length
   };
+}
+
+/**
+ * One page of a password-protected album's media.
+ *
+ * The open endpoint answers a gated session with 401 however many times it is
+ * asked, so a gated album cannot page through `fetchAlbumMediaPage`. Unlock
+ * takes the password with every request and is the only route that will serve
+ * this media, so the grid pages through it instead.
+ *
+ * The password is held in memory by the gate for the life of the view and is
+ * never persisted — the same rule the gate already applies to the credential it
+ * was handed.
+ */
+export async function fetchUnlockedAlbumMediaPage(
+  albumId: string,
+  password: string,
+  offset: number,
+  limit: number
+): Promise<{ photos: ResolvedPhoto[]; total: number } | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/public/sessions/${albumId}/unlock?offset=${offset}&limit=${limit}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password }),
+        cache: "no-store"
+      }
+    );
+    if (!res.ok) return null;
+    return mediaPageFromPayload((await res.json()) as GalleryPayload);
+  } catch {
+    return null;
+  }
 }
 
 /**

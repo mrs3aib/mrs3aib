@@ -1,9 +1,14 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { unlockAlbum, type ResolvedAlbum } from "@/lib/api";
+import {
+  ALBUM_UNLOCK_PAGE_SIZE,
+  fetchUnlockedAlbumMediaPage,
+  unlockAlbum,
+  type ResolvedAlbum
+} from "@/lib/api";
 import type { CategoryId } from "@/lib/data";
 import AlbumView from "./AlbumView";
 import { UNLOCK_HANDOFF_KEY, type UnlockHandoff } from "./AlbumPasswordModal";
@@ -35,6 +40,15 @@ export default function AlbumPasswordGate({
   const t = useTranslations("albumPassword");
   const [password, setPassword] = useState("");
   const [album, setAlbum] = useState<ResolvedAlbum | null>(null);
+  /**
+   * The accepted password, kept for as long as this view is open.
+   *
+   * The unlock endpoint is the only one that will serve a gated album's media,
+   * and it takes the password on every request — so paging the grid needs it
+   * again after the first page. Held in memory only: this component's rule that
+   * a reload asks again still holds, because nothing here outlives the view.
+   */
+  const [unlockedWith, setUnlockedWith] = useState<string | null>(null);
   const [error, setError] = useState<"wrong" | "error" | null>(null);
   const [pending, setPending] = useState(false);
   /**
@@ -66,10 +80,18 @@ export default function AlbumPasswordGate({
     }
 
     let cancelled = false;
-    void unlockAlbum(category, albumId, handoff.password).then((result) => {
+    void unlockAlbum(
+      category,
+      albumId,
+      handoff.password,
+      ALBUM_UNLOCK_PAGE_SIZE
+    ).then((result) => {
       if (cancelled) return;
       // A failure here just shows the form; the visitor types it again.
-      if (result.ok) setAlbum(result.album);
+      if (result.ok) {
+        setAlbum(result.album);
+        setUnlockedWith(handoff.password);
+      }
       setCheckingHandoff(false);
     });
 
@@ -84,11 +106,17 @@ export default function AlbumPasswordGate({
 
     setPending(true);
     setError(null);
-    const result = await unlockAlbum(category, albumId, password);
+    const result = await unlockAlbum(
+      category,
+      albumId,
+      password,
+      ALBUM_UNLOCK_PAGE_SIZE
+    );
     setPending(false);
 
     if (result.ok) {
       setAlbum(result.album);
+      setUnlockedWith(password);
       return;
     }
     setError(result.reason);
@@ -96,6 +124,19 @@ export default function AlbumPasswordGate({
     // the same input rather than making the visitor type it again.
     if (result.reason === "wrong") setPassword("");
   };
+
+  /**
+   * Page the grid through the unlock endpoint, which is the only route that
+   * will serve this album's media. Stable across renders so the grid's loader
+   * is not rebuilt — and therefore re-triggered — on every state change.
+   */
+  const pager = useCallback(
+    (offset: number, limit: number) =>
+      unlockedWith
+        ? fetchUnlockedAlbumMediaPage(albumId, unlockedWith, offset, limit)
+        : Promise.resolve(null),
+    [albumId, unlockedWith]
+  );
 
   /**
    * Nothing is rendered while the handoff is being redeemed: showing the
@@ -110,6 +151,7 @@ export default function AlbumPasswordGate({
         categoryLabel={categoryLabel}
         variant="page"
         backHref={backHref}
+        pager={pager}
       />
     );
   }

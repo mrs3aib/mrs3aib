@@ -253,13 +253,16 @@ export const mediaService = {
       const videoStream = await storageProvider.downloadStream(media.storageKey);
       const result = await processVideo(videoStream);
       const thumbnailKey = storageKeys.thumbnail(media.sessionId, media.id);
-      await storageProvider.upload(thumbnailKey, result.thumbnailBuffer, "image/png");
+      // WebP, not PNG: the poster now comes back from the same pipeline an
+      // image upload uses, so it is encoded the same way too.
+      await storageProvider.upload(thumbnailKey, result.thumbnailBuffer, "image/webp");
 
       const updated = await mediaRepository.update(media.id, {
         width: result.width,
         height: result.height,
         duration: result.duration,
         thumbnailKey,
+        previewDataUrl: result.previewDataUrl,
         processingStatus: "ready"
       });
       return toDto(updated);

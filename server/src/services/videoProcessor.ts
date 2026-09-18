@@ -7,6 +7,7 @@ import type { Readable } from "node:stream";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "@ffmpeg-installer/ffmpeg";
 import ffprobePath from "@ffprobe-installer/ffprobe";
+import { processImage } from "./imageProcessor";
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 ffmpeg.setFfprobePath(ffprobePath.path);
@@ -15,7 +16,10 @@ export type VideoProcessingResult = {
   width: number | null;
   height: number | null;
   duration: number | null;
+  /** The poster still, sized and encoded exactly like an image upload's. */
   thumbnailBuffer: Buffer;
+  /** Blur-up preview of the poster, as an image upload gets. */
+  previewDataUrl: string;
 };
 
 function probe(filePath: string): Promise<ffmpeg.FfprobeData> {
@@ -83,13 +87,26 @@ export async function processVideo(
     ]);
 
     const videoStream = metadata.streams.find((s) => s.codec_type === "video");
-    const thumbnailBuffer = await readFile(thumbnailPath);
+
+    /*
+     * ffmpeg writes the still at the video's own resolution as PNG, so a 4K
+     * clip produced a two-megabyte poster where an image upload would have
+     * produced a ~13 KB thumbnail. A page of video albums therefore shipped
+     * several megabytes of covers, and the slowest of them could still be in
+     * flight long after the card was on screen.
+     *
+     * Running the frame through the same pipeline an image upload uses fixes
+     * both halves: the poster comes back as a capped WebP, and it gains the
+     * blur-up preview that video covers never had.
+     */
+    const frame = await processImage(await readFile(thumbnailPath));
 
     return {
       width: videoStream?.width ?? null,
       height: videoStream?.height ?? null,
       duration: metadata.format.duration ?? null,
-      thumbnailBuffer
+      thumbnailBuffer: frame.thumbnailBuffer,
+      previewDataUrl: frame.previewDataUrl
     };
   } finally {
     await rm(workDir, { recursive: true, force: true });

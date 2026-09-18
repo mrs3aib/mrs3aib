@@ -113,9 +113,21 @@ export const publicGalleryController = {
    */
   async unlockGallery(req: Request, res: Response): Promise<void> {
     const { password } = req.body as { password: string };
+    /**
+     * Paged like `getGallery`. Answering an unlock with the whole album meant
+     * signing two URLs per item before the visitor saw anything — on a large
+     * gated session that is the slowest moment of the whole flow, right after
+     * the password was accepted.
+     */
+    const { limit, offset } = req.query as unknown as {
+      limit?: number;
+      offset?: number;
+    };
     const gallery = await publicGalleryService.getPublicGallery(
       req.params.sessionId as string,
-      password
+      password,
+      limit,
+      offset
     );
     res.status(200).json(gallery);
   },

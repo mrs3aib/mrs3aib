@@ -70,7 +70,11 @@ export default function AlbumPasswordModal({
     setError(null);
     // Verified here so a wrong password is answered in the modal rather than
     // after a page load.
-    const result = await unlockAlbum(category, albumId, password);
+    // One item: this call only decides whether the password is right, and the
+    // album it returns is discarded in favour of the page navigated to below.
+    // Asking for the whole gallery here signed two URLs per item for a payload
+    // nothing reads.
+    const result = await unlockAlbum(category, albumId, password, 1);
 
     if (result.ok) {
       try {
@@ -83,6 +87,21 @@ export default function AlbumPasswordModal({
         // which is the old behaviour rather than a failure.
       }
       router.push(`/category/${category}/${albumId}`);
+      /*
+       * Dismissed rather than left standing.
+       *
+       * `router.push` is a client-side navigation, so nothing here is torn down
+       * on its own, and the success path used to return with `pending` still
+       * true and the dialog still mounted. Coming back to the listing then
+       * restored it exactly as it was: the button read "checking", and the
+       * guard at the top of this function returned early on every attempt, so
+       * the password could never be submitted again.
+       *
+       * Closing also unmounts this component, which releases the scroll lock
+       * its effect took — without that, the album the visitor had just opened
+       * could not be scrolled.
+       */
+      onClose();
       return;
     }
 
