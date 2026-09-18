@@ -65,6 +65,14 @@ export default async function Instagram({
                 alt={content?.title || t("title")}
                 fill
                 sizes="(max-width: 768px) 50vw, 25vw"
+                /*
+                 * A CMS image is a signed storage URL that expires, and the
+                 * optimizer would cache a derivative against a URL that stops
+                 * working — answering the lapsed source with an error rather
+                 * than the original. The bundled defaults are local and
+                 * optimize fine.
+                 */
+                unoptimized={!src.startsWith("/")}
                 className="object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-105 group-active:scale-105 group-focus-visible:scale-105"
               />
               <div className="touch-reveal absolute inset-0 flex items-center justify-center bg-base/60 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-active:opacity-100 group-focus-visible:opacity-100">

@@ -43,6 +43,50 @@ function contentTypeForKey(key: string): string {
   return "application/octet-stream";
 }
 
+/**
+ * Turn any signed storage URL saved into a page's content into the stable asset
+ * URL that proxies it.
+ *
+ * Uploading through the dashboard stores a `/pages/assets/...` URL, which signs
+ * afresh on every request and so never goes stale. But an admin who pointed a
+ * section at an image already in a gallery saved that image's *signed* URL
+ * verbatim, and a signature is minted for minutes — so the section rendered a
+ * broken image from shortly after it was saved until someone noticed and
+ * re-saved it.
+ *
+ * Rewriting on read fixes those saved pages in place, with no migration and no
+ * admin having to touch them again.
+ */
+function withStableAssetUrls(content: unknown, origin: string): unknown {
+  if (typeof content === "string") {
+    // Only a signed URL needs rewriting; anything else is already stable.
+    if (!/^https?:\/\//.test(content) || !content.includes("X-Amz-Signature")) {
+      return content;
+    }
+    try {
+      // The path is the storage key. Dropping the query drops the signature
+      // with it, which is the point: the proxy signs a new one per request.
+      const key = new URL(content).pathname.replace(/^\/+/, "");
+      return key ? `${origin}/pages/assets/${key}` : content;
+    } catch {
+      // Not a URL we can parse; leave it exactly as saved.
+      return content;
+    }
+  }
+  if (Array.isArray(content)) {
+    return content.map((item) => withStableAssetUrls(item, origin));
+  }
+  if (content && typeof content === "object") {
+    return Object.fromEntries(
+      Object.entries(content).map(([key, value]) => [
+        key,
+        withStableAssetUrls(value, origin)
+      ])
+    );
+  }
+  return content;
+}
+
 function toDto(page: PageContent): PageContentDto {
   return {
     id: page.id,
@@ -67,9 +111,23 @@ export const pageContentService = {
     return toDto(page);
   },
 
-  async getPublished(pageKey: string): Promise<PageContentDto | null> {
+  /**
+   * `origin` is where the asset proxy lives, so any signed URL saved into the
+   * content can be handed out as a stable link instead.
+   */
+  async getPublished(
+    pageKey: string,
+    origin?: string
+  ): Promise<PageContentDto | null> {
     const page = await pageContentRepository.findPublishedByPageKey(pageKey);
-    return page ? toDto(page) : null;
+    if (!page) return null;
+
+    const dto = toDto(page);
+    // Without an origin there is nothing to point a proxy URL at, so the
+    // content goes out exactly as saved.
+    return origin
+      ? { ...dto, content: withStableAssetUrls(dto.content, origin) }
+      : dto;
   },
 
   /**

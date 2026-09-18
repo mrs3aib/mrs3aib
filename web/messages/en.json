@@ -208,7 +208,8 @@
     "empty": "Nothing to show here yet.",
     "playVideo": "Play video",
     "locked": "Password protected",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "loadingMore": "Loading more"
   },
   "categoryPages": {
     "backToHome": "Back to home",

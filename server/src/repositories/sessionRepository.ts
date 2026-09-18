@@ -78,7 +78,10 @@ const PUBLIC_ALBUM_MEDIA_SELECT = {
       source: true,
       externalId: true,
       thumbnailKey: true,
-      storageKey: true
+      storageKey: true,
+      // Carried so a card can show the cover's blur-up while the signed image
+      // loads, rather than an empty rectangle.
+      previewDataUrl: true
     }
   }
 } satisfies Prisma.PhotoSessionSelect;
@@ -104,6 +107,30 @@ export async function readyVideoCountsBySession(
   });
 
   return new Map(rows.map((row) => [row.sessionId, row._count._all]));
+}
+
+/**
+ * Ready image and video counts for one session.
+ *
+ * The gallery endpoint can now return a page of media rather than all of it,
+ * so the totals can no longer be derived from what it sent — a first load of
+ * ten items would otherwise report "10 photos" on an album of seven hundred.
+ * Grouped in a single query rather than two counts.
+ */
+export async function readyMediaCountsForSession(
+  sessionId: string
+): Promise<{ photoCount: number; videoCount: number }> {
+  const rows = await prisma.media.groupBy({
+    by: ["type"],
+    where: { sessionId, processingStatus: "ready" },
+    _count: { _all: true }
+  });
+
+  const byType = new Map(rows.map((row) => [row.type, row._count._all]));
+  return {
+    photoCount: byType.get("image") ?? 0,
+    videoCount: byType.get("video") ?? 0
+  };
 }
 
 export const sessionRepository = {

@@ -285,3 +285,41 @@ html.lenis body {
     height: 414 !important;
   }
 }
+
+/*
+ * Sweeping highlight for a loading image frame.
+ *
+ * Only for frames a page has a few of — a hero, a row of album cards. A grid of
+ * hundreds must not run this: every pending tile animating at once repaints the
+ * whole scroll area on every frame, which is the stutter a flat fill avoids.
+ * `ResilientImage` keeps it opt-in for that reason.
+ *
+ * Transform-only, so it composites on the GPU rather than repainting the tile,
+ * and the frame's own `overflow-hidden` clips the travelling band.
+ */
+.image-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.07) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: image-shimmer-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes image-shimmer-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Someone who asked for less motion gets the plain fill instead. */
+@media (prefers-reduced-motion: reduce) {
+  .image-shimmer::after {
+    animation: none;
+  }
+}

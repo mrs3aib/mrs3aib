@@ -65,6 +65,13 @@ function AlbumCard({
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
         className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-data-active:scale-110 group-focus-visible:scale-110"
         unoptimized={album.isLive}
+        // A handful of cards, not a grid of hundreds, so the sweep is
+        // affordable here — and an album whose cover is still being generated
+        // otherwise sat as a dead black rectangle.
+        shimmer
+        {...(album.coverPreviewDataUrl
+          ? { previewDataUrl: album.coverPreviewDataUrl }
+          : {})}
       />
       <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/45 to-black/95 opacity-0 transition-opacity duration-700 group-hover:opacity-100 group-active:opacity-100 group-data-active:opacity-100 group-focus-visible:opacity-100" />
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/70 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100 group-active:opacity-100 group-data-active:opacity-100 group-focus-visible:opacity-100" />

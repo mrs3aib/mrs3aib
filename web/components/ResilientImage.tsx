@@ -13,6 +13,37 @@ type ResilientImageProps = Omit<ImageProps, "src" | "onError"> & {
    * where a shimmering block is more conspicuous than the image arriving.
    */
   showSkeleton?: boolean;
+  /**
+   * Whether a load failure may fall back to the studio placeholder.
+   *
+   * Off by default, and deliberately so. A placeholder photograph among real
+   * work reads as a picture that belongs there — visitors took it for a broken
+   * or duplicated shot, and a page whose signed URLs had all expired turned
+   * into a wall of studio artwork presented as the album. An empty frame says
+   * "not loaded" without claiming to be content.
+   *
+   * Opt in only where a frame must never be empty and the stand-in cannot be
+   * mistaken for real content.
+   */
+  allowPlaceholderOnError?: boolean;
+   /**
+   * Animate the empty frame with a sweeping highlight while it waits.
+   *
+   * Opt-in, and meant only for the handful of frames a page shows at once — a
+   * hero, a row of cards. A grid of hundreds must keep the flat fill: every
+   * pending tile animating at once repaints the scroll area on every frame.
+   */
+  shimmer?: boolean;
+  /**
+   * A tiny inlined image of this same photograph, painted blurred and upscaled
+   * until the real one decodes.
+   *
+   * Given one, the frame carries the picture's own colour and composition from
+   * the first paint instead of a grey block, which is what makes a long grid
+   * read as filling in rather than popping in. Without one the plain skeleton
+   * still applies, so this is safe to leave unset.
+   */
+  previewDataUrl?: string;
 };
 
 /**
@@ -29,6 +60,9 @@ export default function ResilientImage({
   src,
   fallbackSrc = DEFAULT_FALLBACK,
   showSkeleton = true,
+  allowPlaceholderOnError = false,
+  shimmer = false,
+  previewDataUrl,
   className,
   onLoad,
   ...props
@@ -63,16 +97,51 @@ export default function ResilientImage({
       // without invalidating its signature while forcing a new image element.
       : `${usableSrc}#image-retry`;
 
-  const showOverlay = showSkeleton && !loaded;
+  // A failed image renders nothing but the skeleton, so the frame stays empty
+  // rather than showing stand-in artwork. A missing `src` takes the same path:
+  // a caller that has no image to show is in the same position as one whose
+  // image would not load, and the studio placeholder would read as a real
+  // photograph either way.
+  const skeletonInstead = !allowPlaceholderOnError && (failed || !src);
+  const showOverlay = showSkeleton && (!loaded || skeletonInstead);
 
   return (
     <>
       {showOverlay ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 animate-pulse bg-white/[0.05]"
-        />
+        /*
+         * The blur-up preview when there is one, a flat fill otherwise.
+         *
+         * Either way this is a static layer, never `animate-pulse`. In a grid
+         * every unloaded tile runs this overlay at once, and a few hundred
+         * infinite CSS animations repaint on every frame — the scroll stutter
+         * that costs far more than the shimmer was worth.
+         *
+         * The preview is a ~20px image stretched over the whole frame, so it
+         * arrives already blurred by the upscale; `blur` on top only smooths
+         * the pixel edges, and a small radius is enough. It is not shown for a
+         * failed tile: standing in for a photograph that is not coming would
+         * leave a permanent smear that reads as a broken image.
+         */
+        previewDataUrl && !skeletonInstead ? (
+          <img
+            src={previewDataUrl}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 h-full w-full scale-105 object-cover blur-md"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 z-10 overflow-hidden bg-white/[0.05] ${
+              // Only while something is still expected. A frame that has given
+              // up keeps the flat fill: a sweep that never resolves reads as a
+              // page still working, and the visitor waits for nothing.
+              shimmer && !skeletonInstead ? "image-shimmer" : ""
+            }`}
+          />
+        )
       ) : null}
+      {skeletonInstead ? null : (
       <Image
         {...props}
         ref={imgRef}
@@ -93,11 +162,13 @@ export default function ResilientImage({
             return;
           }
           setFailed(true);
-          // The placeholder is a local asset that will paint; without this a
-          // failed load would sit under a skeleton that never clears.
+          // A placeholder, where one is allowed, is a local asset that will
+          // paint; without this a failed load would sit under a skeleton that
+          // never clears.
           setLoaded(true);
         }}
       />
+      )}
     </>
   );
 }

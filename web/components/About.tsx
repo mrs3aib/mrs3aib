@@ -1,6 +1,6 @@
-import Image from "next/image";
 import { getTranslations } from "next-intl/server";
 import Button from "./Button";
+import ResilientImage from "./ResilientImage";
 import { FadeUp } from "./Reveal";
 import type { HomepageCmsContent } from "@/lib/cms";
 import { BOOKING_WHATSAPP_URL } from "@/lib/data";
@@ -15,7 +15,16 @@ export default async function About({
   const title = content?.title || t("title");
   const body = content?.body || t("body");
   const cta = content?.cta || t("cta");
-  const imageUrl = content?.imageUrl || "/images/about-photographer.png";
+  const localImage = "/images/about-photographer.png";
+  const imageUrl = content?.imageUrl || localImage;
+  /**
+   * A CMS image is a signed storage URL that expires. Routing one through the
+   * Next optimizer caches a derivative against a URL that will stop working,
+   * and the optimizer answers a lapsed source with an error rather than the
+   * original — which is how this section ended up showing a broken-image icon
+   * and its alt text. The bundled default is a local asset and optimizes fine.
+   */
+  const isRemoteImage = !imageUrl.startsWith("/");
 
   return (
     <section id="about" className="bg-[#120f0b] px-6 py-16 md:px-10 md:py-20">
@@ -36,12 +45,16 @@ export default async function About({
           </div>
 
           <div className="relative min-h-72 overflow-hidden md:col-span-5 md:min-h-64">
-            <Image
+            <ResilientImage
               src={imageUrl}
               alt={title}
               fill
               sizes="(max-width: 768px) 100vw, 34vw"
               className="object-cover object-center grayscale md:object-left"
+              unoptimized={isRemoteImage}
+              // One frame on the page, so the sweep is affordable and says the
+              // picture is coming rather than leaving a flat panel.
+              shimmer
             />
             <div className="absolute inset-0 bg-linear-to-l from-transparent via-black/10 to-black/75 rtl:bg-linear-to-r" />
           </div>

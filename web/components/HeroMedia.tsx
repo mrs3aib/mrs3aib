@@ -43,6 +43,17 @@ export default function HeroMedia({
 
   const isVideo = mediaType === "video" && !failed;
 
+  /**
+   * Whether a URL points outside this app's own `public` assets.
+   *
+   * A CMS image is a signed storage URL that expires. Routing one through the
+   * Next optimizer caches a derivative against a URL that will stop working,
+   * and the optimizer answers a lapsed source with an error rather than the
+   * original — so the hero breaks some time after the signature was minted,
+   * long after anyone was looking at this code. Local fallbacks optimize fine.
+   */
+  const isRemote = (url: string) => !url.startsWith("/");
+
   // A changed URL means a different asset: clear the old element's state so a
   // working video after a broken one is not left hidden behind the fallback.
   useEffect(() => {
@@ -73,6 +84,7 @@ export default function HeroMedia({
         priority
         sizes="100vw"
         className={className}
+        unoptimized={isRemote(mediaType === "image" ? mediaUrl : fallbackImage)}
         // A CMS URL can 404 or point at a host Next cannot optimise; falling
         // back keeps the hero from rendering as an empty box.
         onError={() => setFailed(true)}
@@ -95,6 +107,7 @@ export default function HeroMedia({
         fill
         priority
         sizes="100vw"
+        unoptimized={isRemote(posterUrl || fallbackImage)}
         className={`${className ?? ""} transition-opacity duration-700 ${
           playing ? "opacity-0" : "opacity-100"
         }`}

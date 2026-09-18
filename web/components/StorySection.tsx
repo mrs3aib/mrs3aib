@@ -257,6 +257,9 @@ export default function StorySection({
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
                     className={storyImageClass(chapter.imagePresentation)}
+                    // A CMS chapter image is a signed URL that expires; see the
+                    // note on the pinned layer below.
+                    unoptimized={!chapter.image.startsWith("/")}
                   />
                 </div>
                 <div>
@@ -293,6 +296,14 @@ export default function StorySection({
               fill
               sizes="100vw"
               className={storyImageClass(chapter.imagePresentation)}
+              /*
+               * A chapter image may come from the CMS, which supplies a signed
+               * storage URL that expires. The optimizer would cache a
+               * derivative against a URL that stops working and then answer the
+               * lapsed source with an error rather than the original. The
+               * built-in visuals are local paths and optimize fine.
+               */
+              unoptimized={!chapter.image.startsWith("/")}
             />
             {/*
               Two scrims rather than one wash over the whole frame.

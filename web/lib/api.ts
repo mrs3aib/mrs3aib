@@ -35,10 +35,15 @@ export const CMS_CACHE_TAG = "cms";
 /**
  * Ceiling for any response that embeds a signed storage URL.
  *
- * Those URLs expire ten minutes after the backend mints them, so caching the
- * response for the full hour would hand later visitors links that 403. Five
- * minutes keeps a comfortable margin while still absorbing the repeat views
- * that follow one visitor around the site.
+ * Those URLs expire an hour after the backend mints them, so this has to stay
+ * far enough below that a visitor served the very last second of a cached
+ * response still has ample time to load every image on the page. Five minutes
+ * leaves at least fifty-five, and still absorbs the repeat views that follow
+ * one visitor around the site.
+ *
+ * Keep this well under `DEFAULT_DOWNLOAD_URL_TTL_SECONDS` in the backend. When
+ * the two were close, a gallery left scrolling failed every remaining image at
+ * once as the signatures lapsed together.
  */
 const SIGNED_URL_REVALIDATE_SECONDS = 300;
 
@@ -48,6 +53,9 @@ const SIGNED_URL_REVALIDATE_SECONDS = 300;
  * - `cms`    — admin-editable content. Cached for an hour and purged on save
  *              via `CMS_CACHE_TAG`, so an edit still appears immediately.
  * - `signed` — carries signed storage URLs, so it expires with them.
+ * - `signed-cms` — admin-editable content that also embeds signed URLs. Takes
+ *              the signed ceiling and the CMS tag, so it neither outlives a
+ *              signature nor waits to show an edit.
  * - `never`  — a one-shot URL minted for this click; caching it would hand the
  *              next visitor a link that is already spent.
  *
@@ -55,7 +63,7 @@ const SIGNED_URL_REVALIDATE_SECONDS = 300;
  * homepage re-fetch a dozen times per visit while album pages risked serving
  * expired links.
  */
-type CachePolicy = "cms" | "signed" | "never";
+type CachePolicy = "cms" | "signed" | "signed-cms" | "never";
 
 /** Give up quickly — a slow API must not stall a static page build. */
 const FETCH_TIMEOUT_MS = 4000;
@@ -84,6 +92,12 @@ export type GalleryMedia = {
   thumbnailUrl: string | null;
   /** Signed URL for the original file — what the lightbox views and videos play. */
   sourceUrl?: string | null;
+  /**
+   * A tiny inlined WebP of this image, shown blurred under the tile until the
+   * real thumbnail decodes. Null for videos and for anything processed before
+   * previews existed.
+   */
+  previewDataUrl?: string | null;
 };
 
 /** One published session as listed on a category page. */
@@ -100,6 +114,8 @@ export type PublicAlbum = {
   /** Whether opening this album asks for the gallery password. */
   requiresPassword?: boolean;
   coverUrl: string | null;
+  /** Blur-up preview for the cover; null when it is a separately uploaded one. */
+  coverPreviewDataUrl?: string | null;
   /** "video" when the pinned cover is a video, so the card shows a player. */
   coverType?: "image" | "video" | null;
   /** Playable source for a video cover; `coverUrl` stays the poster frame. */
@@ -114,6 +130,13 @@ export type GalleryPayload = {
     title: string;
     /** The session's real category, for callers that must verify one. */
     category?: CategoryId;
+    /**
+     * Totals for the whole album. Present once the backend started returning
+     * pages of media — without them a partial response would be miscounted as
+     * the entire album.
+     */
+    photoCount?: number;
+    videoCount?: number;
     eventDate: string;
     location: string;
     description: string | null;
@@ -128,6 +151,8 @@ export type GalleryPayload = {
     watermarkUrl: string | null;
   };
   media: GalleryMedia[];
+  /** Absent on an older backend, which always returned everything. */
+  page?: { offset: number; returned: number; total: number };
 };
 
 /**
@@ -137,6 +162,16 @@ export type GalleryPayload = {
 export type ResolvedPhoto = {
   key: string;
   url: string;
+  /**
+   * Whether `url` is a real generated thumbnail rather than the original file.
+   *
+   * A thumbnail can be missing — still processing, or the job failed — and
+   * `url` then falls back to the source. That is fine for the lightbox, which
+   * wants full resolution anyway, but in a grid tile it pulls a multi-megabyte
+   * original to fill a fifth of the viewport's width. The grid checks this and
+   * shows an empty frame instead.
+   */
+  hasThumbnail: boolean;
   /** Videos render the same poster thumbnail but download the source file. */
   type: "image" | "video";
   /**
@@ -144,6 +179,11 @@ export type ResolvedPhoto = {
    * from here, and videos cannot play without it.
    */
   sourceUrl?: string;
+  /**
+   * Blur-up preview for this tile, inlined by the server. Absent for videos and
+   * for older media, which fall back to the plain skeleton.
+   */
+  previewDataUrl?: string;
   /**
    * YouTube video id when this item is a linked video. The grid shows YouTube's
    * still and the lightbox embeds a player, so no file of ours is involved.
@@ -188,6 +228,12 @@ export type ResolvedAlbum = Album & {
    * album — a pinned cover is frequently neither first nor even an image.
    */
   coverKey?: string;
+  /**
+   * Blur-up preview for the cover, when it comes from one of the album's own
+   * images. Absent for a separately uploaded session cover, which has no media
+   * row behind it to carry one.
+   */
+  coverPreviewDataUrl?: string;
   /** Playable source for a video cover; `coverUrl` is its poster frame. */
   coverVideoUrl?: string;
   /** Optional overlay configured for this session's preview images. */
@@ -213,6 +259,15 @@ function cacheOptionsFor(policy: CachePolicy): RequestInit {
       return { cache: "no-store" };
     case "signed":
       return { next: { revalidate: SIGNED_URL_REVALIDATE_SECONDS } };
+    case "signed-cms":
+      // The short signed-URL ceiling, plus the CMS tag so a save still purges
+      // it at once rather than waiting the five minutes out.
+      return {
+        next: {
+          revalidate: SIGNED_URL_REVALIDATE_SECONDS,
+          tags: [CMS_CACHE_TAG]
+        }
+      };
     case "cms":
       return { next: { revalidate: REVALIDATE_SECONDS, tags: [CMS_CACHE_TAG] } };
   }
@@ -283,8 +338,10 @@ function toResolvedPhoto(m: GalleryMedia): ResolvedPhoto {
   return {
     key: m.id,
     url: (m.thumbnailUrl ?? m.sourceUrl) as string,
+    hasThumbnail: Boolean(m.thumbnailUrl) || m.source === "youtube",
     type: m.type,
     ...(m.sourceUrl ? { sourceUrl: m.sourceUrl } : {}),
+    ...(m.previewDataUrl ? { previewDataUrl: m.previewDataUrl } : {}),
     ...(youTubeId ? { youTubeId } : {}),
     isPlaceholder: false
   };
@@ -315,6 +372,9 @@ function toLiveAlbum(base: Album, summary: PublicAlbum): ResolvedAlbum {
     coverType: summary.coverType ?? "image",
     coverVideoUrl: summary.coverVideoUrl ?? undefined,
     ...(summary.coverImage ? { coverKey: summary.coverImage } : {}),
+    ...(summary.coverPreviewDataUrl
+      ? { coverPreviewDataUrl: summary.coverPreviewDataUrl }
+      : {}),
     videoCount: summary.videoCount,
     location: summary.location,
     date: summary.eventDate
@@ -481,6 +541,32 @@ async function resolveAlbumByIdUncached(
 }
 
 /**
+ * One page of an album's media, fetched from the browser after first paint.
+ *
+ * The album page renders a first page server-side so something is on screen
+ * immediately; the grid then pulls the remainder through here. Returns the
+ * mapped photos plus whether anything is left, so the caller does not have to
+ * understand the payload shape.
+ */
+export async function fetchAlbumMediaPage(
+  albumId: string,
+  offset: number,
+  limit: number
+): Promise<{ photos: ResolvedPhoto[]; total: number } | null> {
+  const payload = await safeGet<GalleryPayload>(
+    `/public/sessions/${albumId}?offset=${offset}&limit=${limit}`,
+    { policy: "signed", interactive: true }
+  );
+  if (!payload) return null;
+
+  const visible = payload.media.filter((m) => m.thumbnailUrl || m.sourceUrl);
+  return {
+    photos: visible.map(toResolvedPhoto),
+    total: payload.page?.total ?? visible.length
+  };
+}
+
+/**
  * Memoized per request, like `fetchAlbumAccess` above.
  *
  * The signed-URL fetch underneath is cached by Next, but the payload mapping —
@@ -526,9 +612,21 @@ export function albumFromPayload(
     category,
     title: payload.session.title,
     description: payload.session.description,
-    photoCount: payload.media.filter((m) => m.type === "image").length,
+    /**
+     * The server's total, falling back to counting what arrived. A paged
+     * response carries only part of the album, so deriving the count from it
+     * would report the page size as the album size.
+     */
+    photoCount:
+      payload.session.photoCount ??
+      payload.media.filter((m) => m.type === "image").length,
     photos,
     ...(cover ? { coverKey: cover.key } : {}),
+    // Only when the cover is one of the album's own photographs; a session
+    // cover is a separate upload with no preview generated for it.
+    ...(!sessionCoverUrl && cover?.previewDataUrl
+      ? { coverPreviewDataUrl: cover.previewDataUrl }
+      : {}),
     // The pinned cover wins, whatever its kind. Preferring the first image
     // here showed a still from the middle of the album while the admin had
     // deliberately pinned a video as the album's face.
@@ -551,7 +649,10 @@ export function albumFromPayload(
       : {}),
     // Absent settings mean an unconfigured session, which allows downloads.
     allowDownloads: payload.settings?.allowDownloads ?? true,
-    videoCount: payload.media.filter((m) => m.type === "video").length,
+    // Server total when present, same reasoning as `photoCount` above.
+    videoCount:
+      payload.session.videoCount ??
+      payload.media.filter((m) => m.type === "video").length,
     location: payload.session.location,
     date: payload.session.eventDate
   };
@@ -712,7 +813,19 @@ export const apiConfigured = isConfigured;
 export async function getPublishedPageContent(
   pageKey: string
 ): Promise<PageContentPayload | null> {
-  return safeGet<PageContentPayload>(`/pages/${pageKey}`, { policy: "cms" });
+  /**
+   * `signed`, not `cms`, because this payload embeds signed storage URLs for
+   * whatever imagery the admin uploaded — the About portrait, the hero, the
+   * Instagram strip.
+   *
+   * Cached for the CMS hour, those URLs outlived their signatures and the
+   * sections rendered a broken-image icon over their alt text for most of every
+   * hour. The tag is kept so a save still purges this immediately; only the
+   * ceiling changes.
+   */
+  return safeGet<PageContentPayload>(`/pages/${pageKey}`, {
+    policy: "signed-cms"
+  });
 }
 
 /**
