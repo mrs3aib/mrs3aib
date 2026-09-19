@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import {
   CalendarIcon,
+  ChartIcon,
   DownloadIcon,
   FolderIcon,
   HomeIcon,
@@ -36,6 +37,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { labelEn: "Dashboard", labelAr: "لوحة التحكم", to: "/", icon: HomeIcon },
+  { labelEn: "Analytics", labelAr: "التحليلات", to: "/analytics", icon: ChartIcon },
   {
     labelEn: "Pages",
     labelAr: "الصفحات",
@@ -53,6 +55,12 @@ export const navItems: NavItem[] = [
         to: `/cms/categories/${category}`,
         icon: CATEGORY_ICONS[category]
       })),
+      {
+        labelEn: "Extra services",
+        labelAr: "الخدمات الإضافية",
+        to: "/cms/extra-services",
+        icon: SettingsIcon
+      },
       { labelEn: "Footer", labelAr: "تذييل الصفحة", to: "/cms/footer", icon: PagesIcon }
     ]
   },

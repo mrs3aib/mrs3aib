@@ -268,6 +268,22 @@
     },
     "empty": "Galleries from this category are coming soon."
   },
+  "extraServicesPage": {
+    "backToHome": "Back to home",
+    "kicker": "Extra services",
+    "title": "The details that complete the story.",
+    "subtitle": "A focused creative team for the work around the shoot — from the first graphic to the final presentation.",
+    "cta": "Start a project",
+    "serviceBar": "Extra service gallery navigation",
+    "workLabel": "Selected work",
+    "items": {
+      "graphicDesign": "Brand systems, campaign artwork and social design with a clear, considered point of view.",
+      "motionGraphics": "Animated identities and short-form motion built to hold attention without losing the brand.",
+      "videoEditing": "Rhythm, colour and storytelling refined into films, reels and campaign edits.",
+      "voiceover": "Voice direction and sound-led storytelling that gives the image its final layer.",
+      "presentation": "Editorial presentations and decks that turn ideas into a confident visual narrative."
+    }
+  },
   "about": {
     "label": "About me",
     "title": "We don't just take photographs.",

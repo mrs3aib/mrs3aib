@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/authStore";
 import { AppShell } from "@/layouts/AppShell";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
+import AnalyticsPage from "@/pages/AnalyticsPage";
 import SessionsPage from "@/pages/SessionsPage";
 import ClientsPage from "@/pages/ClientsPage";
 import BookingsPage from "@/pages/BookingsPage";
@@ -21,6 +22,7 @@ import StudioPage from "@/pages/StudioPage";
 import HomePageManager from "@/pages/cms/HomePageManager";
 import CategoryPagesManager from "@/pages/cms/CategoryPagesManager";
 import FooterPageManager from "@/pages/cms/FooterPageManager";
+import ExtraServicesPageManager from "@/pages/cms/ExtraServicesPageManager";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +64,7 @@ function ShellRoutes() {
     <AppShell>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
@@ -72,6 +75,7 @@ function ShellRoutes() {
         <Route path="/cms" element={<Navigate to="/cms/home" replace />} />
         <Route path="/cms/home" element={<HomePageManager />} />
         <Route path="/cms/footer" element={<FooterPageManager />} />
+        <Route path="/cms/extra-services" element={<ExtraServicesPageManager />} />
         <Route path="/cms/categories" element={<Navigate to="/cms/categories/weddings" replace />} />
         <Route path="/cms/categories/:categoryId" element={<CategoryPagesManager />} />
         <Route path="/cms/pages" element={<CmsPage />} />

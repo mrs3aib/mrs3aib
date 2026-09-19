@@ -15,6 +15,7 @@ import { adminClientsRouter } from "@/routes/adminClients.routes";
 import { adminMediaRouter } from "@/routes/adminMedia.routes";
 import { adminDownloadsRouter } from "@/routes/adminDownloads.routes";
 import { adminDashboardRouter } from "@/routes/adminDashboard.routes";
+import { adminAnalyticsRouter } from "@/routes/adminAnalytics.routes";
 import { adminNotificationsRouter } from "@/routes/adminNotifications.routes";
 import { adminPageContentRouter } from "@/routes/adminPageContent.routes";
 import { galleryRouter } from "@/routes/gallery.routes";
@@ -22,6 +23,7 @@ import { mediaRouter } from "@/routes/media.routes";
 import { downloadRouter } from "@/routes/download.routes";
 import { pageContentRouter } from "@/routes/pageContent.routes";
 import { publicGalleryRouter } from "@/routes/publicGallery.routes";
+import { trackRouter } from "@/routes/track.routes";
 import { apiRateLimiter } from "@/middleware/rateLimit";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 
@@ -91,6 +93,9 @@ export function createApp(): Express {
   app.use("/media", mediaRouter);
   app.use("/download", downloadRouter);
   app.use("/pages", pageContentRouter);
+  // Before `/public`, so the beacon keeps its own tight budget instead of
+  // inheriting the gallery router's 600/min content limiter.
+  app.use("/public/track", trackRouter);
   app.use("/public", publicGalleryRouter);
   app.use("/admin/auth", adminAuthRouter);
   app.use("/admin/sessions", adminSessionsRouter);
@@ -98,6 +103,7 @@ export function createApp(): Express {
   app.use("/admin/media", adminMediaRouter);
   app.use("/admin/downloads", adminDownloadsRouter);
   app.use("/admin/dashboard", adminDashboardRouter);
+  app.use("/admin/analytics", adminAnalyticsRouter);
   app.use("/admin/notifications", adminNotificationsRouter);
   app.use("/admin/pages", adminPageContentRouter);
 

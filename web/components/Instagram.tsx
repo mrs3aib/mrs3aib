@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { getTranslations } from "next-intl/server";
-import { instagramImages } from "@/lib/data";
 import type { HomepageCmsContent } from "@/lib/cms";
 import { FadeUp } from "./Reveal";
 import { ArrowUpRight } from "./icons";
@@ -11,10 +10,18 @@ export default async function Instagram({
   content?: HomepageCmsContent["instagram"];
 }) {
   const t = await getTranslations("instagram");
-  const images = content?.images?.filter(Boolean).length
-    ? content.images.filter(Boolean)
-    : instagramImages;
+  const images = content?.images?.filter(Boolean) ?? [];
   const url = content?.url || "https://instagram.com";
+
+  /**
+   * Nothing to show: render no section at all.
+   *
+   * This strip used to fall back to eight stock placeholders, which on a live
+   * site posed as the studio's own Instagram feed. With nothing set in the
+   * CMS the heading and follow link would stand over an empty grid, so the
+   * whole section stands down until real images are added.
+   */
+  if (images.length === 0) return null;
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-28 md:px-10 md:py-40">

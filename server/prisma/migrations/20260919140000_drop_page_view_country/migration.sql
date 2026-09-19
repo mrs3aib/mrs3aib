@@ -1,0 +1,12 @@
+-- Drop the unused country column from page views.
+--
+-- Country was read from a CDN geo header (`cf-ipcountry` and friends). The
+-- beacon posts from the visitor's browser straight to this API, so a header
+-- added by whatever fronts the *site* never reaches this request — the column
+-- only ever held NULL, and the admin panel reported every visit as "unknown".
+--
+-- Removed rather than left in place: a column that cannot be populated is a
+-- standing invitation to build another report on top of it. Restoring the
+-- feature means putting a CDN in front of this API, which is a deployment
+-- change, not a schema one.
+ALTER TABLE "page_views" DROP COLUMN IF EXISTS "country";

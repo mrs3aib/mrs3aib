@@ -89,7 +89,8 @@ export default function Navbar({
   const t = useTranslations("nav");
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const isCategoryPage = pathname.startsWith("/category/");
+  const isCategoryPage =
+    pathname.startsWith("/category/") || pathname === "/extra-services";
   const [scrolled, setScrolled] = useState(false);
   /** True once the page has scrolled past where the bar sits. */
   const [pastBar, setPastBar] = useState(false);
@@ -339,13 +340,13 @@ export default function Navbar({
                 </button>
                 <Dropdown>
                   {extraServiceKeys.map((service) => (
-                    <a
+                    <Link
                       key={service}
-                      href="#contact"
+                      href={`/extra-services#${service}`}
                       className="block rounded px-3 py-2 text-sm text-secondary transition-colors hover:bg-white/5 hover:text-primary"
                     >
                       {t(service)}
-                    </a>
+                    </Link>
                   ))}
                 </Dropdown>
               </li>
@@ -510,14 +511,14 @@ export default function Navbar({
                 onToggle={() => setMobileServicesOpen((open) => !open)}
               >
                 {extraServiceKeys.map((service) => (
-                  <button
+                  <Link
                     key={service}
-                    type="button"
-                    onClick={() => go("#contact")}
+                    href={`/extra-services#${service}`}
+                    onClick={() => setMenuOpen(false)}
                     className="block w-full rounded-md px-2 py-2 text-start text-sm text-secondary transition-colors hover:bg-white/[0.05] hover:text-accent"
                   >
                     {t(service)}
-                  </button>
+                  </Link>
                 ))}
               </MobileDropdown>
               </div>

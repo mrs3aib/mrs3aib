@@ -85,6 +85,22 @@ enum DownloadType {
   zip
 }
 
+/// Coarse device class, derived from the user agent at write time.
+///
+/// Parsed once on ingest rather than stored raw and classified on read: the
+/// analytics page groups by this on every query, and a LIKE over user agent
+/// strings is both slower and inconsistent between callers.
+enum DeviceType {
+  desktop
+  mobile
+  tablet
+  /// Recognised crawler, or a user agent we could not place. Kept rather than
+  /// dropped so a traffic spike from a bot is visible instead of silently
+  /// inflating the human numbers.
+  bot
+  unknown
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -137,6 +153,7 @@ model PhotoSession {
   downloads       DownloadHistory[]
   gallerySettings GallerySettings?
   zipArchives     ZipArchive[]
+  pageViews       PageView[]
 
   @@index([category, isPublic, visibility])
   @@map("sessions")
@@ -297,4 +314,48 @@ model ZipArchive {
 
   @@index([sessionId])
   @@map("zip_archives")
+}
+
+/// One public-site page view.
+///
+/// Written by the site's own beacon (`POST /public/track`), never by the admin
+/// panel or the API docs — this table is about visitors, so counting our own
+/// traffic would make every number useless.
+///
+/// Deliberately cookie-less. `visitorHash` is a salted digest of IP + user
+/// agent + the UTC day, so a returning visitor is recognisable within a day
+/// (enough for "unique visitors") and unrecognisable across days. That keeps
+/// the table free of personal identifiers and the site free of a consent
+/// banner, at the cost of over-counting someone who visits on two days.
+model PageView {
+  id           String     @id @default(cuid())
+  /// Normalised path without query or hash, e.g. "/en/category/weddings".
+  path         String
+  /// Locale segment parsed off the path, e.g. "en" or "ar". Null when the
+  /// path carries none.
+  locale       String?
+  /// Session this view was of, when the path resolved to an album. Set null
+  /// rather than cascading on delete: the visit happened, and losing the
+  /// history because an album was later removed would put a hole in the
+  /// totals.
+  sessionId    String?
+  /// Referring origin only (scheme + host), e.g. "https://instagram.com".
+  /// The full referrer URL is discarded — it can carry personal data from the
+  /// referring site, and the host is all the report groups by.
+  referrerHost String?
+  deviceType   DeviceType @default(unknown)
+  /// Salted daily digest of the visitor. See the model comment.
+  visitorHash  String
+  createdAt    DateTime   @default(now())
+
+  session PhotoSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  /// Serves the time-series and range totals, which always bound `createdAt`.
+  @@index([createdAt])
+  /// Serves "unique visitors in range" without scanning the range twice.
+  @@index([createdAt, visitorHash])
+  /// Serves the top-paths report.
+  @@index([path, createdAt])
+  @@index([sessionId])
+  @@map("page_views")
 }

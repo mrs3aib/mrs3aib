@@ -155,10 +155,7 @@ export type GalleryPayload = {
   page?: { offset: number; returned: number; total: number };
 };
 
-/**
- * A photo ready to render: either a signed backend URL or a placeholder.
- * `seed` is kept so callers can still build alternate sizes for placeholders.
- */
+/** A photo ready to render, always backed by a signed backend URL. */
 export type ResolvedPhoto = {
   key: string;
   url: string;
@@ -189,9 +186,6 @@ export type ResolvedPhoto = {
    * still and the lightbox embeds a player, so no file of ours is involved.
    */
   youTubeId?: string;
-  /** Present only for placeholder photos, where sizes are generated on demand. */
-  seed?: string;
-  isPlaceholder: boolean;
 };
 
 export type ResolvedAlbum = Album & {
@@ -342,8 +336,7 @@ function toResolvedPhoto(m: GalleryMedia): ResolvedPhoto {
     type: m.type,
     ...(m.sourceUrl ? { sourceUrl: m.sourceUrl } : {}),
     ...(m.previewDataUrl ? { previewDataUrl: m.previewDataUrl } : {}),
-    ...(youTubeId ? { youTubeId } : {}),
-    isPlaceholder: false
+    ...(youTubeId ? { youTubeId } : {})
   };
 }
 

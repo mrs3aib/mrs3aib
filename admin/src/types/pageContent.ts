@@ -219,6 +219,8 @@ export type HomepageCmsContent = {
     items?: { name?: string; logoUrl?: string }[];
   };
   footer?: CmsFooter;
+  /** The extra-services page. Only ever set on the `extra-services` record. */
+  extraServices?: CmsExtraServices;
 };
 
 // Arabic first: it is the site's default locale (see the web routing config),
@@ -444,6 +446,129 @@ export function footerTranslationStatus(
   const text = footer?.text?.[locale] ?? {};
   const filled = FOOTER_TEXT_FIELDS.filter((field) => text[field]?.trim()).length;
   const total = FOOTER_TEXT_FIELDS.length;
+
+  return { filled, total, complete: filled === total, empty: filled === 0 };
+}
+
+/**
+ * One discipline on the extra-services page: a heading, a blurb and a small
+ * showcase.
+ *
+ * `key` ties a row back to the five built-in services, so an untouched row
+ * keeps its translated nav label and description. A row the admin adds has no
+ * key and must carry its own title — there is no translation to fall back on.
+ */
+export type CmsExtraServiceText = {
+  title?: string;
+  description?: string;
+};
+
+export type CmsExtraService = CmsExtraServiceText & {
+  /** Built-in service id, or absent for a row the admin created. */
+  key?: string;
+  /** Showcase images, in render order. */
+  images?: string[];
+  text?: Localized<CmsExtraServiceText>;
+};
+
+/** Page-level copy that reads differently per language. */
+export type CmsExtraServicesText = {
+  kicker?: string;
+  title?: string;
+  subtitle?: string;
+  cta?: string;
+  workLabel?: string;
+};
+
+/** The text fields a locale must fill to count as fully translated. */
+export const EXTRA_SERVICES_TEXT_FIELDS = [
+  "kicker",
+  "title",
+  "subtitle",
+  "cta",
+  "workLabel"
+] as const satisfies readonly (keyof CmsExtraServicesText)[];
+
+/**
+ * The extra-services page, stored under its own `extra-services` page key.
+ *
+ * Every field is optional and the site falls back to its built-in translated
+ * copy for anything left blank, so an admin can edit one heading without
+ * having to re-enter the whole page. An empty `services` list means "use the
+ * five built-in services" rather than "show nothing".
+ */
+export type CmsExtraServices = {
+  text?: Localized<CmsExtraServicesText>;
+  services?: CmsExtraService[];
+};
+
+/** CMS record backing the extra-services page. */
+export const EXTRA_SERVICES_PAGE_KEY = "extra-services";
+
+/**
+ * The five services the site ships with, in render order.
+ *
+ * Seeded into the editor the first time the page is opened so an admin edits
+ * real rows rather than facing an empty list — the site renders these whether
+ * or not a record exists, so showing nothing would misrepresent the page.
+ * `key` is what ties a row back to its built-in translation.
+ */
+export const BUILTIN_EXTRA_SERVICE_KEYS = [
+  "graphicDesign",
+  "motionGraphics",
+  "videoEditing",
+  "voiceover",
+  "presentation"
+] as const;
+
+/** English labels for the built-in rows, to caption them in the editor. */
+export const BUILTIN_EXTRA_SERVICE_LABELS: Record<string, { en: string; ar: string }> = {
+  graphicDesign: { en: "Graphic design", ar: "التصميم الجرافيكي" },
+  motionGraphics: { en: "Motion graphics", ar: "الموشن جرافيك" },
+  videoEditing: { en: "Video editing", ar: "مونتاج الفيديو" },
+  voiceover: { en: "Voiceover", ar: "التعليق الصوتي" },
+  presentation: { en: "Presentation", ar: "العروض التقديمية" }
+};
+
+/**
+ * Canonical extra-services payload for saving.
+ *
+ * Drops blank image slots and rows that carry nothing at all, so a half-filled
+ * row the admin abandoned does not reach the site as an empty section. A row
+ * keeping only its `key` is preserved: that is how an admin says "show this
+ * built-in service with its built-in copy".
+ */
+export function normalizeExtraServicesForSave(
+  extra: CmsExtraServices
+): CmsExtraServices {
+  const services = (extra.services ?? [])
+    .map((service) => {
+      const images = (service.images ?? []).map((url) => url.trim()).filter(Boolean);
+      return { ...service, ...(images.length ? { images } : { images: [] }) };
+    })
+    .filter((service) => {
+      // A built-in row always has something to render, even when left blank.
+      if (service.key) return true;
+      const text = service.text ?? {};
+      const hasText = CMS_LOCALES.some(
+        (locale) => text[locale]?.title?.trim() || text[locale]?.description?.trim()
+      );
+      return hasText || (service.images?.length ?? 0) > 0;
+    });
+
+  return { ...extra, services };
+}
+
+/** How many of a locale's extra-services text fields are filled. */
+export function extraServicesTranslationStatus(
+  extra: CmsExtraServices | undefined,
+  locale: CmsLocale
+): { filled: number; total: number; complete: boolean; empty: boolean } {
+  const text = extra?.text?.[locale] ?? {};
+  const filled = EXTRA_SERVICES_TEXT_FIELDS.filter((field) =>
+    text[field]?.trim()
+  ).length;
+  const total = EXTRA_SERVICES_TEXT_FIELDS.length;
 
   return { filled, total, complete: filled === total, empty: filled === 0 };
 }

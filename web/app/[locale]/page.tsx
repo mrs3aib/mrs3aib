@@ -2,8 +2,6 @@ import { getPageContentForRender } from "@/lib/cmsPreview";
 import { setRequestLocale } from "next-intl/server";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
-import FeaturedProjects from "@/components/FeaturedProjects";
-import Services from "@/components/Services";
 import Gallery from "@/components/Gallery";
 import LatestWeddings from "@/components/LatestWeddings";
 import StorySection from "@/components/StorySection";

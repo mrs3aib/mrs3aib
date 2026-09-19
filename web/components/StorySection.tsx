@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { storyImages } from "@/lib/data";
 import type {
   HomepageCmsContent,
   StoryImageFit,
@@ -105,8 +104,13 @@ export default function StorySection({
   /**
    * Chapters drive the section: each one is a panel of copy over its own
    * background image. A chapter with no image of its own falls back to the
-   * legacy `images` list by position, then to the built-in visuals, so content
-   * saved before images moved onto chapters still renders.
+   * legacy `images` list by position, so content saved before images moved
+   * onto chapters still renders.
+   *
+   * There is no stock fallback beyond that. Chapters without a picture are
+   * dropped rather than filled in: this section is a photograph with words
+   * over it, and a chapter whose image was someone else's stock photo was
+   * illustrating the studio's story with work it did not do.
    */
   const cmsChapters = content?.chapters?.filter(
     (chapter) => chapter.number || chapter.title || chapter.text || chapter.image
@@ -119,10 +123,7 @@ export default function StorySection({
           number: chapter.number || "",
           title: chapter.title || "",
           text: chapter.text || "",
-          image:
-            chapter.image ||
-            legacyImages[index] ||
-            storyImages[index % storyImages.length],
+          image: chapter.image || legacyImages[index],
           imagePresentation: chapter.imagePresentation,
           descriptionTextStyle: chapter.descriptionTextStyle
         }))
@@ -130,11 +131,17 @@ export default function StorySection({
           number: t(`chapters.${key}.number`),
           title: t(`chapters.${key}.title`),
           text: t(`chapters.${key}.text`),
-          image: legacyImages[index] || storyImages[index % storyImages.length],
+          image: legacyImages[index],
           imagePresentation: undefined,
           descriptionTextStyle: undefined
         }))
-  ).slice(0, MAX_CHAPTERS);
+  )
+    // Every layout here paints the copy over a full-bleed image; without one
+    // a chapter renders as text on an empty frame.
+    .filter((chapter): chapter is typeof chapter & { image: string } =>
+      Boolean(chapter.image)
+    )
+    .slice(0, MAX_CHAPTERS);
   const chapterCount = chapters.length;
 
   /**
@@ -232,6 +239,15 @@ export default function StorySection({
    * and partly cut off. Here each chapter is its own block, so nothing overlaps
    * and nothing is clipped.
    */
+  /**
+   * No chapter has an image: render no section at all.
+   *
+   * Placed after every hook above, which must run unconditionally. Both
+   * layouts below are built around full-bleed photographs, so with none to
+   * show there is no section left to draw — only a heading over empty frames.
+   */
+  if (chapterCount === 0) return null;
+
   if (reduceMotion) {
     return (
       <section className="relative bg-base px-6 py-20 md:px-10 md:py-28">
