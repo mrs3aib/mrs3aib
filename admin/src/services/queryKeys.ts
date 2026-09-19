@@ -1,3 +1,4 @@
+import type { AnalyticsParams } from "@/types/analytics";
 import type { ClientListParams } from "@/types/client";
 import type { DownloadListParams } from "@/types/download";
 import type { MediaListParams } from "@/types/media";
@@ -6,6 +7,10 @@ import type { SessionListParams } from "@/types/session";
 export const queryKeys = {
   dashboard: {
     stats: () => ["dashboard", "stats"] as const
+  },
+  analytics: {
+    all: () => ["analytics"] as const,
+    summary: (params: AnalyticsParams) => ["analytics", "summary", params] as const
   },
   notifications: {
     all: () => ["notifications"] as const,

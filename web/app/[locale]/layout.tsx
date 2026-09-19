@@ -14,6 +14,7 @@ import FooterSection from "@/components/FooterSection";
 import MobileTabBar from "@/components/MobileTabBar";
 import { HideInPreview } from "@/components/CmsPreviewBridge";
 import RouteLoader from "@/components/RouteLoader";
+import VisitTracker from "@/components/VisitTracker";
 import { getCmsCategories } from "@/lib/api";
 import { categories as fallbackCategories } from "@/lib/data";
 import "../globals.css";
@@ -99,6 +100,10 @@ export default async function LocaleLayout({
       <body className="bg-base text-primary antialiased">
         <NextIntlClientProvider messages={messages}>
           <RouteLoader />
+          {/* Records one view per navigation. Renders nothing, and is inert
+              inside the CMS preview frame so admin previews are not counted
+              as visitor traffic. */}
+          <VisitTracker />
           <SmoothScroll >
             {/* Both are fixed-position and sized for a real viewport; inside
                 the narrow CMS preview panel they cover the content being

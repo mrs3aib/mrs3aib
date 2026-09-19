@@ -93,3 +93,24 @@ export const uploadRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { code: "RATE_LIMITED", message: "Too many uploads. Slow down." } }
 });
+
+/**
+ * Budget for the public analytics beacon.
+ *
+ * `/public/*` is exempt from the general limiter, so without this the one
+ * unauthenticated write endpoint on the API would have no ceiling at all — a
+ * loop could add rows to `page_views` indefinitely.
+ *
+ * Sized against a real visitor rather than a real page: a person browsing
+ * quickly opens a few dozen pages a minute at most, while a scripted caller
+ * wanting to skew the numbers needs far more than that to move them. Anything
+ * over the limit is dropped, which costs an honest visitor nothing but an
+ * uncounted view.
+ */
+export const trackRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many requests." } }
+});

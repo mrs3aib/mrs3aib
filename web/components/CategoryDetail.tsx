@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
   categories,
-  categoryPages,
   BOOKING_WHATSAPP_URL,
   type CategoryId,
 } from "@/lib/data";
@@ -44,7 +43,6 @@ export default function CategoryDetail({
   const knownId = (categories as readonly string[]).includes(id)
     ? (id as CategoryId)
     : null;
-  const data = knownId ? categoryPages[knownId] : null;
   const Icon = knownId ? categoryIcons[knownId] : CameraIcon;
   const others = categoryItems.filter((category) => category.id !== id);
   const hasCmsMedia = Boolean(content?.mediaUrl);

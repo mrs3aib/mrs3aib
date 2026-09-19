@@ -219,6 +219,8 @@ export type HomepageCmsContent = {
     items?: { name?: string; logoUrl?: string }[];
   };
   footer?: CmsFooter;
+  /** The extra-services page. Only ever set on the `extra-services` record. */
+  extraServices?: CmsExtraServices;
 };
 
 // Arabic first: it is the site's default locale (see the web routing config),
@@ -436,6 +438,118 @@ export function footerTranslationStatus(
   const text = footer?.text?.[locale] ?? {};
   const filled = FOOTER_TEXT_FIELDS.filter((field) => text[field]?.trim()).length;
   const total = FOOTER_TEXT_FIELDS.length;
+
+  return { filled, total, complete: filled === total, empty: filled === 0 };
+}
+
+/** CMS record backing the extra-services page. */
+export const EXTRA_SERVICES_PAGE_KEY = "extra-services";
+
+/**
+ * One discipline on the extra-services page: a heading, a blurb and a small
+ * showcase.
+ *
+ * `key` ties a row back to the five built-in services, so an untouched row
+ * keeps its translated nav label and description. A row the admin adds has no
+ * key and must carry its own title — there is no translation to fall back on.
+ */
+export type CmsExtraServiceText = {
+  title?: string;
+  description?: string;
+};
+
+export type CmsExtraService = CmsExtraServiceText & {
+  /** Built-in service id, or absent for a row the admin created. */
+  key?: string;
+  /** Showcase images, in render order. */
+  images?: string[];
+  text?: Localized<CmsExtraServiceText>;
+};
+
+/** Page-level copy that reads differently per language. */
+export type CmsExtraServicesText = {
+  kicker?: string;
+  title?: string;
+  subtitle?: string;
+  cta?: string;
+  workLabel?: string;
+};
+
+/** The text fields a locale must fill to count as fully translated. */
+export const EXTRA_SERVICES_TEXT_FIELDS = [
+  "kicker",
+  "title",
+  "subtitle",
+  "cta",
+  "workLabel"
+] as const satisfies readonly (keyof CmsExtraServicesText)[];
+
+/**
+ * The extra-services page, stored under its own `extra-services` page key.
+ *
+ * Every field is optional and the site falls back to its built-in translated
+ * copy for anything left blank, so an admin can edit one heading without
+ * having to re-enter the whole page. An empty `services` list means "use the
+ * five built-in services" rather than "show nothing".
+ */
+export type CmsExtraServices = {
+  text?: Localized<CmsExtraServicesText>;
+  services?: CmsExtraService[];
+};
+
+/**
+ * Page-level extra-services text for one locale, preferring that locale's
+ * translation and then English, exactly like `footerTextFor`.
+ *
+ * Anything still blank is left absent rather than defaulted here: the renderer
+ * holds the built-in translations and falls back per field, so a page with one
+ * edited heading keeps translated copy everywhere else.
+ */
+export function extraServicesTextFor(
+  extra: CmsExtraServices | undefined,
+  locale: string
+): CmsExtraServicesText {
+  if (!extra) return {};
+
+  const translated = extra.text?.[locale as CmsLocale] ?? {};
+  const fallback = extra.text?.en ?? {};
+  const merged: CmsExtraServicesText = {};
+
+  for (const field of EXTRA_SERVICES_TEXT_FIELDS) {
+    const value = translated[field]?.trim() || fallback[field]?.trim();
+    if (value) merged[field] = value;
+  }
+
+  return merged;
+}
+
+/** One service row's title and description, resolved for a locale. */
+export function extraServiceTextFor(
+  service: CmsExtraService,
+  locale: string
+): CmsExtraServiceText {
+  const translated = service.text?.[locale as CmsLocale] ?? {};
+  const fallback = service.text?.en ?? {};
+
+  return {
+    title: translated.title?.trim() || fallback.title?.trim() || service.title?.trim(),
+    description:
+      translated.description?.trim() ||
+      fallback.description?.trim() ||
+      service.description?.trim()
+  };
+}
+
+/** How many extra-services text fields a locale has filled. */
+export function extraServicesTranslationStatus(
+  extra: CmsExtraServices | undefined,
+  locale: CmsLocale
+): { filled: number; total: number; complete: boolean; empty: boolean } {
+  const text = extra?.text?.[locale] ?? {};
+  const filled = EXTRA_SERVICES_TEXT_FIELDS.filter((field) =>
+    text[field]?.trim()
+  ).length;
+  const total = EXTRA_SERVICES_TEXT_FIELDS.length;
 
   return { filled, total, complete: filled === total, empty: filled === 0 };
 }

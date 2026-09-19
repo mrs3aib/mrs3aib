@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { Link } from "@/i18n/navigation";
-import { albumPhotoUrl } from "@/lib/data";
 import {
   publicFolderZipUrl,
   publicSelectionZipUrl,
@@ -469,23 +468,11 @@ export default function AlbumView({
    * history. Placeholder albums have no session to archive.
    */
   const downloadAll = async () => {
-    // Placeholder albums have no session to archive. Saving each demo image in
-    // turn is at least a real download — the old behaviour opened the cover in
-    // a new tab, which looked like the button was broken.
-    if (!album.isLive || !album.sessionId) {
-      setDownloadState("preparing");
-      try {
-        for (const [index, photo] of album.photos.entries()) {
-          if (!photo.seed) continue;
-          await triggerDownload(
-            albumPhotoUrl(photo.seed, 1600, 1200),
-            `${albumTitle}-${index + 1}.jpg`
-          );
-        }
-        setDownloadState("idle");
-      } catch {
-        failDownload();
-      }
+    // Every album now comes from the backend, so one without a session id is a
+    // genuine fault rather than a demo. Reported as a failed download instead
+    // of silently doing nothing.
+    if (!album.sessionId) {
+      failDownload();
       return;
     }
 
@@ -548,16 +535,9 @@ export default function AlbumView({
     if (selectedKeys.length === 0) return;
     const chosen = album.photos.filter((p) => selectedKeys.includes(p.key));
 
-    // Placeholder albums have no session to archive — save the seeds directly.
-    if (!album.isLive || !album.sessionId) {
-      // Sequential, not Promise.all: browsers cancel rapid parallel downloads.
-      for (const [index, photo] of chosen.entries()) {
-        if (!photo.seed) continue;
-        await triggerDownload(
-          albumPhotoUrl(photo.seed, 1600, 1200),
-          `${albumTitle}-${index + 1}.jpg`
-        );
-      }
+    // See `downloadAll`: no session id means a broken album, not a demo one.
+    if (!album.sessionId) {
+      failDownload();
       exitSelectMode();
       return;
     }
@@ -1266,17 +1246,12 @@ function AlbumPhotoGrid({
   const allowDownloads = album.allowDownloads !== false;
 
   /**
-   * Placeholders can be re-requested at any size, so link them directly. A live
-   * photo's grid URL is a signed *thumbnail*, so fetch a fresh signed URL for
+   * A photo's grid URL is a signed *thumbnail*, so fetch a fresh signed URL for
    * the original instead of downloading the small version.
    */
   const onDownloadPhoto = async (photo: ResolvedPhoto, index: number) => {
     const extension = photo.type === "video" ? "mp4" : "jpg";
     const fileName = `${title}-${index + 1}.${extension}`;
-    if (photo.seed) {
-      await triggerDownload(albumPhotoUrl(photo.seed, 1600, 1200), fileName);
-      return;
-    }
     try {
       const url = album.sessionId
         ? await publicSingleDownloadUrl(album.sessionId, photo.key)
@@ -1376,16 +1351,14 @@ function AlbumPhotoGrid({
                  * An unrenderable item already gives an empty frame, and
                  * passing no source takes the same path.
                  */
-                src={
-                  photo.isPlaceholder || photo.hasThumbnail ? photo.url : null
-                }
+                src={photo.hasThumbnail ? photo.url : null}
                 alt={`${title} ${index + 1}`}
                 fill
                 sizes={isRows ? "176px" : "(max-width: 640px) 50vw, 20vw"}
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 group-active:scale-105"
                 // Signed backend URLs are already sized and expire, so routing them
                 // through the Next optimizer would only add a cache that outlives them.
-                unoptimized={!photo.isPlaceholder}
+                unoptimized
                 // Gives the tile this photograph's own colours while the real
                 // thumbnail is still decoding, rather than a grey block.
                 {...(photo.previewDataUrl

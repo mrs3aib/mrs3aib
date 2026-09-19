@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ResolvedPhoto } from "@/lib/api";
-import { albumPhotoUrl } from "@/lib/data";
 import { ArrowRight, CloseIcon, DownloadIcon } from "./icons";
 
 /**
@@ -89,13 +88,8 @@ export default function MediaLightbox({
     };
   }, [index]);
 
-  // Full-size source where there is one; placeholders can be re-requested at
-  // any size, and the grid thumbnail is the last resort.
-  const fullUrl = photo
-    ? photo.seed
-      ? albumPhotoUrl(photo.seed, 1800, 1400)
-      : (photo.sourceUrl ?? photo.url)
-    : "";
+  // Full-size source where there is one; the grid thumbnail is the fallback.
+  const fullUrl = photo ? (photo.sourceUrl ?? photo.url) : "";
 
   const content = (
     <AnimatePresence>

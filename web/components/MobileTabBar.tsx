@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import {
   BOOKING_WHATSAPP_URL,
   extraServiceKeys
@@ -64,6 +64,20 @@ function ServicesIcon({ className }: { className?: string }) {
   );
 }
 
+function HomeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" className={className}>
+      <path
+        d="m3.5 10 8.5-6.6 8.5 6.6v9.3a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7V10Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M9.2 21v-6h5.6v6" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 function WhatsappIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
@@ -97,7 +111,6 @@ export default function MobileTabBar({
   // The service labels are the same strings the header dropdown uses.
   const tNav = useTranslations("nav");
   const pathname = usePathname();
-  const router = useRouter();
   // A single value rather than one flag per sheet: the two sheets share the
   // same slot above the bar, so opening one must close the other.
   const [openSheet, setOpenSheet] = useState<"categories" | "services" | null>(
@@ -106,12 +119,11 @@ export default function MobileTabBar({
   const [atFooter, setAtFooter] = useState(false);
   // Set when a service tap had to navigate home first; consumed once the
   // contact section exists. See `goToContact`.
-  const [pendingContact, setPendingContact] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const categoriesToggleRef = useRef<HTMLButtonElement>(null);
-  const servicesToggleRef = useRef<HTMLButtonElement>(null);
 
   const isWeddings = pathname === "/category/weddings";
+  const isHome = pathname === "/";
 
   /**
    * Retract the bar while the footer is on screen.
@@ -152,8 +164,7 @@ export default function MobileTabBar({
       // back open — leaving it stuck.
       if (
         !sheetRef.current?.contains(target) &&
-        !categoriesToggleRef.current?.contains(target) &&
-        !servicesToggleRef.current?.contains(target)
+        !categoriesToggleRef.current?.contains(target)
       ) {
         setOpenSheet(null);
       }
@@ -180,42 +191,6 @@ export default function MobileTabBar({
    * does not reach it, so the scroll is deferred and run by the effect below
    * once the section has actually mounted.
    */
-  const goToContact = () => {
-    setOpenSheet(null);
-    if (document.querySelector("#contact")) {
-      scrollToId("#contact");
-      return;
-    }
-    setPendingContact(true);
-    router.push("/");
-  };
-
-  // Run a deferred contact scroll once the home page has painted the section.
-  useEffect(() => {
-    if (!pendingContact) return;
-
-    let frame = 0;
-    // The route change resolves before the new page's markup is committed, so
-    // poll a few frames rather than assuming the section is there on the first.
-    const attempt = (remaining: number) => {
-      if (document.querySelector("#contact")) {
-        scrollToId("#contact");
-        setPendingContact(false);
-        return;
-      }
-      if (remaining === 0) {
-        // Give up quietly rather than leaving the flag armed to fire on some
-        // unrelated later navigation.
-        setPendingContact(false);
-        return;
-      }
-      frame = requestAnimationFrame(() => attempt(remaining - 1));
-    };
-
-    attempt(60);
-    return () => cancelAnimationFrame(frame);
-  }, [pendingContact, pathname]);
-
   const itemClass =
     "flex flex-1 flex-col items-center justify-center gap-1.5 py-2 transition-colors duration-300";
   const labelClass = "text-[11px] font-medium leading-none";
@@ -261,20 +236,28 @@ export default function MobileTabBar({
                     </Link>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={() => setOpenSheet("services")}
+                  className="flex flex-col items-center gap-2 rounded px-1 py-2.5 text-center text-secondary transition-colors hover:bg-white/5 hover:text-accent active:bg-white/10"
+                >
+                  <ServicesIcon className="h-6 w-6 shrink-0 text-accent" />
+                  <span className="text-[10px] leading-tight">{t("extraServices")}</span>
+                </button>
               </div>
             ) : (
               // Services are words, not destinations with imagery, so they read
               // as a plain list rather than the categories' icon grid.
               <div className="flex flex-col">
                 {extraServiceKeys.map((service) => (
-                  <button
+                  <Link
                     key={service}
-                    type="button"
-                    onClick={goToContact}
+                    href={`/extra-services#${service}`}
+                    onClick={() => setOpenSheet(null)}
                     className="rounded px-3 py-2.5 text-start text-sm text-secondary transition-colors hover:bg-white/5 hover:text-accent active:bg-white/10"
                   >
                     {tNav(service)}
-                  </button>
+                  </Link>
                 ))}
               </div>
             )}
@@ -319,27 +302,20 @@ export default function MobileTabBar({
           <span className={labelClass}>{t("weddings")}</span>
         </Link>
 
-        <button
-          ref={servicesToggleRef}
-          type="button"
-          aria-expanded={openSheet === "services"}
-          onClick={() =>
-            setOpenSheet((open) => (open === "services" ? null : "services"))
-          }
-          className={`${itemClass} ${
-            openSheet === "services" ? "text-accent" : "text-secondary"
+        {/* Elevated centre action: a permanent, obvious way back home from
+            any gallery or service page without competing with Book now. */}
+        <Link
+          href="/"
+          aria-current={isHome ? "page" : undefined}
+          className={`relative -mt-5 flex flex-1 flex-col items-center justify-end gap-1.5 py-2 transition-colors duration-300 ${
+            isHome ? "text-accent" : "text-secondary"
           }`}
         >
-          <ServicesIcon className="h-6 w-6" />
-          <span className={`${labelClass} flex items-center gap-1`}>
-            {t("extraServices")}
-            <ChevronDownIcon
-              className={`h-3 w-3 transition-transform duration-300 ${
-                openSheet === "services" ? "rotate-180" : ""
-              }`}
-            />
+          <span className="flex h-13 w-13 items-center justify-center rounded-full border border-accent/60 bg-accent text-black shadow-lg shadow-accent/35 transition-transform duration-300 hover:scale-105 active:scale-95">
+            <HomeIcon className="h-6 w-6" />
           </span>
-        </button>
+          <span className={labelClass}>{tNav("home")}</span>
+        </Link>
 
         <a
           href="#social-accounts"

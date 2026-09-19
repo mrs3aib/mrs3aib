@@ -50,6 +50,20 @@ const envSchema = z.object({
   WEB_REVALIDATE_URL: z.string().url().optional(),
   REVALIDATE_SECRET: z.string().min(16).optional(),
 
+  /**
+   * Salt for the analytics visitor digest.
+   *
+   * Visits are counted without cookies: a visitor is identified by a hash of
+   * IP + user agent + the UTC day, and this salt is what stops that hash from
+   * being reversible by anyone who can guess an IP. Optional so an existing
+   * deploy keeps booting — when unset it is derived from `JWT_SECRET`, which
+   * is already required and already secret.
+   *
+   * Changing it resets visitor identity: the day it changes, returning
+   * visitors are counted as new. Totals and page views are unaffected.
+   */
+  ANALYTICS_SALT: z.string().min(16).optional(),
+
   R2_ENDPOINT: z.string().min(1, "R2_ENDPOINT is required"),
   R2_BUCKET: z.string().min(1, "R2_BUCKET is required"),
   R2_ACCESS_KEY: z.string().min(1, "R2_ACCESS_KEY is required"),
@@ -98,6 +112,17 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+/**
+ * Effective salt for the analytics visitor digest.
+ *
+ * Falls back to a value derived from `JWT_SECRET` rather than to a constant:
+ * a hardcoded default would be identical across every deployment of this code,
+ * which for a hash over IP + user agent is no better than no salt at all. The
+ * prefix keeps this from colliding with any other use of the same secret.
+ */
+export const analyticsSalt =
+  env.ANALYTICS_SALT ?? `pageview:${env.JWT_SECRET}`;
 
 /**
  * Warn when a production deploy is about to serve localhost-only CORS.

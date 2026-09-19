@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
-import { galleryItems, galleryUrl } from "@/lib/data";
 import type { HomepageCmsContent } from "@/lib/cms";
 import { startScroll, stopScroll } from "@/lib/scroll";
 import { FadeUp } from "./Reveal";
@@ -61,28 +60,28 @@ export default function Gallery({
   pickedItems?: GalleryTile[];
 }) {
   const t = useTranslations("gallery");
-  const tp = useTranslations("projects");
   const [active, setActive] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const cmsItems = content?.items?.filter((item) => item.imageUrl) ?? [];
   const hasPicked = (pickedItems?.length ?? 0) > 0;
-  const hasCmsItems = cmsItems.length > 0;
+  /**
+   * Sessions the admin picked, else items typed by hand in the CMS.
+   *
+   * There is deliberately no third fallback. This section once filled itself
+   * with stock photographs under invented project names when both were empty,
+   * which on a live site advertised work the studio never did — and, being
+   * indistinguishable from real work, hid the fact that nothing had been
+   * published yet.
+   */
   const renderItems: GalleryTile[] = hasPicked
     ? (pickedItems as GalleryTile[])
-    : hasCmsItems
-      ? cmsItems.map((item) => ({
-          imageUrl: item.imageUrl,
-          title: item.title || content?.title || t("title"),
-          category: item.category || "",
-          // CMS asset URLs are served by the backend, not generated on demand.
-          signed: true
-        }))
-      : galleryItems.map((item) => ({
-          imageUrl: galleryUrl(item),
-          title: tp(`items.${item.projectId}.title`),
-          category: tp(`items.${item.projectId}.category`),
-          signed: false
-        }));
+    : cmsItems.map((item) => ({
+        imageUrl: item.imageUrl,
+        title: item.title || content?.title || t("title"),
+        category: item.category || "",
+        // CMS asset URLs are served by the backend, not generated on demand.
+        signed: true
+      }));
   const totalItems = renderItems.length;
   const visibleItems = showAll ? renderItems : renderItems.slice(0, 4);
 
@@ -176,6 +175,16 @@ export default function Gallery({
       startScroll();
     };
   }, [active, close, step]);
+
+  /**
+   * Nothing published and nothing typed in the CMS: render no section at all.
+   *
+   * Placed after every hook above, which must run unconditionally. An empty
+   * grid would still draw the heading, the divider rules and a "View more"
+   * button over a blank row — a section that looks broken rather than one that
+   * is simply not filled in yet.
+   */
+  if (totalItems === 0) return null;
 
   return (
     <section
