@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { useLanguage } from "@/i18n/languageContext";
 
-export type WorkspaceTabKey = "content" | "sessions" | "media";
+export type WorkspaceTabKey = "content" | "sessions" | "media" | "preview";
 
 export type WorkspaceTabDef = {
   key: WorkspaceTabKey;

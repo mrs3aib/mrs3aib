@@ -42,7 +42,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: string; id: string; albumId: string }>;
 }): Promise<Metadata> {
-  const { id, albumId } = await params;
+  const { locale, id, albumId } = await params;
   if (!isKnownCategory(id)) return {};
 
   /**
@@ -59,7 +59,18 @@ export async function generateMetadata({
   // An album reached under the wrong category renders a 404, which must not
   // carry the album's real title — same reasoning as the hidden check above.
   if (access && access.category !== id) return {};
-  if (access?.requiresPassword) return { title: access.title };
+  if (access?.requiresPassword) {
+    return {
+      title: access.title,
+      alternates: {
+        canonical: `/${locale}/category/${id}/${albumId}`,
+        languages: {
+          ar: `/ar/category/${id}/${albumId}`,
+          en: `/en/category/${id}/${albumId}`
+        }
+      }
+    };
+  }
 
   const album = await resolveAlbumById(id as CategoryId, albumId);
   if (!album?.title) return {};
@@ -84,6 +95,13 @@ export async function generateMetadata({
   return {
     title: album.title,
     description,
+    alternates: {
+      canonical: `/${locale}/category/${id}/${albumId}`,
+      languages: {
+        ar: `/ar/category/${id}/${albumId}`,
+        en: `/en/category/${id}/${albumId}`
+      }
+    },
     openGraph: {
       title: album.title,
       description,

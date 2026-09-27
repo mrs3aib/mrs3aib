@@ -45,3 +45,13 @@ export async function addYouTubeLink(payload: {
 export async function deleteMedia(id: string): Promise<void> {
   await apiClient.delete(`/admin/media/${id}`);
 }
+
+export async function updateMediaDownloadPermission(
+  id: string,
+  downloadEnabled: boolean
+): Promise<Media> {
+  const { data } = await apiClient.patch<Media>(`/admin/media/${id}`, {
+    downloadEnabled
+  });
+  return data;
+}

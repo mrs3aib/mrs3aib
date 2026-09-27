@@ -33,6 +33,8 @@ export type Media = {
   source: MediaSource;
   externalUrl: string | null;
   externalId: string | null;
+  /** False keeps the item visible but excludes it from every download flow. */
+  downloadEnabled: boolean;
   createdAt: string;
 };
 

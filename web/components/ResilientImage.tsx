@@ -44,6 +44,13 @@ type ResilientImageProps = Omit<ImageProps, "src" | "onError"> & {
    * still applies, so this is safe to leave unset.
    */
   previewDataUrl?: string;
+  /**
+   * Called once the image has given up — after the retry, when the frame is
+   * about to settle on the skeleton. Lets a caller whose URLs can go stale
+   * (signed covers restored from Next's router cache) fetch fresh ones; a new
+   * `src` resets this component and loads again.
+   */
+  onFailed?: () => void;
 };
 
 /**
@@ -63,6 +70,7 @@ export default function ResilientImage({
   allowPlaceholderOnError = false,
   shimmer = false,
   previewDataUrl,
+  onFailed,
   className,
   onLoad,
   ...props
@@ -212,6 +220,7 @@ export default function ResilientImage({
             return;
           }
           setFailed(true);
+          onFailed?.();
           // A placeholder, where one is allowed, is a local asset that will
           // paint; without this a failed load would sit under a skeleton that
           // never clears.

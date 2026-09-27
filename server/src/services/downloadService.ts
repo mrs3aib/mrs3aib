@@ -27,6 +27,9 @@ export const downloadService = {
     if (!media || media.sessionId !== input.sessionId) {
       throw new NotFoundError("Media not found");
     }
+    if (!media.downloadEnabled) {
+      throw new ForbiddenError("Downloads are disabled for this media");
+    }
     // A linked video is watched on YouTube, not downloaded — there is no file
     // of ours to sign a URL for.
     if (!media.storageKey) {
@@ -71,7 +74,8 @@ export const downloadService = {
     // Linked videos have no file behind them. Dropping them keeps a mixed
     // selection working instead of failing the whole batch over one embed.
     const downloadable = belongsToSession.filter(
-      (m): m is typeof m & { storageKey: string } => Boolean(m.storageKey)
+      (m): m is typeof m & { storageKey: string } =>
+        Boolean(m.storageKey) && m.downloadEnabled
     );
 
     const urls = await Promise.all(
@@ -130,7 +134,9 @@ export const downloadService = {
     await downloadHistoryService.record({
       clientId: input.clientId,
       sessionId: input.sessionId,
-      mediaIds: media.filter((m) => m.processingStatus === "ready").map((m) => m.id),
+      mediaIds: media
+        .filter((m) => m.processingStatus === "ready" && m.downloadEnabled)
+        .map((m) => m.id),
       downloadType: "zip",
       ipAddress: input.ipAddress
     });

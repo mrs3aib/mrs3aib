@@ -103,3 +103,16 @@ export function exportSessionsCsv(sessions: PhotoSession[]) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * The session's album on the public site.
+ *
+ * Arabic is the site's default locale, so the link opens in Arabic whatever
+ * language the dashboard is in — the same rule the clients page follows. Null
+ * when the site URL is unconfigured, so no broken link is offered.
+ */
+export function publicSessionUrl(session: PhotoSession): string | null {
+  const base = import.meta.env.VITE_PUBLIC_SITE_URL;
+  if (!base) return null;
+  return `${base.replace(/\/$/, "")}/ar/category/${session.category}/${session.id}`;
+}

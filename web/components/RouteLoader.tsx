@@ -18,6 +18,10 @@ export default function RouteLoader() {
     // route transition (and its data fetching) has resolved.
     const onClick = (e: MouseEvent) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      // A handler that cancelled the click is doing something else with it —
+      // a locked album card opens its password prompt instead. There is no
+      // navigation coming, so the loader would cover the page for good.
+      if (e.defaultPrevented) return;
       const anchor = (e.target as HTMLElement)?.closest("a");
       if (!anchor) return;
       const href = anchor.getAttribute("href");

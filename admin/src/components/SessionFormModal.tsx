@@ -167,12 +167,19 @@ export function SessionFormModal({
             className="mt-0.5 h-4 w-4 rounded border-line accent-accent"
             {...register("isPublic")}
           />
+          {/*
+            This is publishing, not listing: it decides whether the album can be
+            opened on the site at all. Whether it is *listed* is the visibility
+            below. Labelled "Show in public gallery", it read as the opposite of
+            a Private visibility, when a private album needs it ticked for its
+            link to work.
+          */}
           <span>
-            {t("Show in public gallery", "إظهار في المعرض العام")}
+            {t("Publish on the website", "نشر على الموقع")}
             <span className="mt-1 block text-xs text-secondary">
               {t(
-                "Visitors can browse and download this folder without signing in.",
-                "يمكن للزوار تصفح هذا المجلد وتحميله دون تسجيل الدخول."
+                "Visitors can open this album without signing in. Visibility below decides whether it is listed or reached by link only.",
+                "يمكن للزوار فتح هذا الألبوم دون تسجيل الدخول. يحدد الظهور أدناه ما إذا كان يظهر في القائمة أو يُفتح بالرابط فقط."
               )}
             </span>
           </span>
@@ -205,6 +212,15 @@ export function SessionFormModal({
               )}
             </option>
           </SelectField>
+        ) : null}
+
+        {isPublic && visibility === "private" ? (
+          <p className="rounded-lg border border-line bg-base px-3 py-2 text-xs text-secondary">
+            {t(
+              "Published but not listed: the album appears nowhere on the site, and opens only for people you send its link to. Copy the link from the session's options.",
+              "منشور لكنه غير ظاهر: لا يظهر الألبوم في أي مكان في الموقع، ويُفتح فقط لمن ترسل له الرابط. انسخ الرابط من خيارات الجلسة."
+            )}
+          </p>
         ) : null}
 
         {isPublic && visibility === "protected" ? (

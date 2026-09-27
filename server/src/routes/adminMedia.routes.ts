@@ -8,7 +8,8 @@ import {
   addYouTubeLinkSchema,
   listMediaSchema,
   mediaIdParamSchema,
-  requestUploadUrlSchema
+  requestUploadUrlSchema,
+  updateMediaDownloadSchema
 } from "@/validations/mediaValidations";
 
 export const adminMediaRouter = Router();
@@ -60,6 +61,13 @@ adminMediaRouter.post(
   uploadRateLimiter,
   validate(requestUploadUrlSchema),
   asyncHandler(mediaController.requestUploadUrl)
+);
+
+/** Enable or disable downloads for one uploaded image or video. */
+adminMediaRouter.patch(
+  "/:id",
+  validate(updateMediaDownloadSchema),
+  asyncHandler(mediaController.updateDownloadPermission)
 );
 
 /**

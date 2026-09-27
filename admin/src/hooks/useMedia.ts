@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteMedia, listMedia } from "@/services/mediaService";
+import {
+  deleteMedia,
+  listMedia,
+  updateMediaDownloadPermission
+} from "@/services/mediaService";
 import { queryKeys } from "@/services/queryKeys";
 import type { MediaListParams } from "@/types/media";
 
@@ -41,6 +45,17 @@ export function useDeleteMedia() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteMedia,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.media.all() });
+    }
+  });
+}
+
+export function useUpdateMediaDownloadPermission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, downloadEnabled }: { id: string; downloadEnabled: boolean }) =>
+      updateMediaDownloadPermission(id, downloadEnabled),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.media.all() });
     }

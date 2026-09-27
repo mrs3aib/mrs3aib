@@ -45,3 +45,8 @@ export const addYouTubeLinkSchema = z.object({
 export const mediaIdParamSchema = z.object({
   params: z.object({ id: z.string().min(1) })
 });
+
+export const updateMediaDownloadSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({ downloadEnabled: z.boolean() })
+});

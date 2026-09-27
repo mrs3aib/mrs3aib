@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMediaQuery, useDeleteMedia } from "@/hooks/useMedia";
+import {
+  useMediaQuery,
+  useDeleteMedia,
+  useUpdateMediaDownloadPermission
+} from "@/hooks/useMedia";
 import { useUpdateSession } from "@/hooks/useSessions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Pagination } from "./Pagination";
 import { formatBytes } from "@/utils/format";
-import { CloseIcon, StarIcon, TrashIcon, VideoIcon } from "./icons";
+import { BanIcon, CloseIcon, StarIcon, TrashIcon, VideoIcon } from "./icons";
 import { useLanguage } from "@/i18n/languageContext";
 import type { Media, MediaType } from "@/types/media";
 
@@ -91,6 +95,22 @@ export function MediaGrid({
     { enabled: Boolean(sessionId) }
   );
   const deleteMedia = useDeleteMedia();
+  const updateDownloadPermission = useUpdateMediaDownloadPermission();
+  const filterCount = (value: MediaType | "") => {
+    if (!data) return null;
+    if (value === "image") return data.imageCount;
+    if (value === "video") return data.videoCount;
+    return data.total;
+  };
+  const emptyMessage =
+    typeFilter === "video"
+      ? t("No videos in this session yet.", "لا توجد فيديوهات في هذه الجلسة بعد.")
+      : typeFilter === "image"
+        ? t("No photos in this session yet.", "لا توجد صور في هذه الجلسة بعد.")
+        : t(
+            "No media uploaded to this session yet.",
+            "لم يتم رفع أي وسائط لهذه الجلسة بعد."
+          );
   const previewItems = useMemo(() => data?.items ?? [], [data?.items]);
   const previewIndex = previewItem
     ? previewItems.findIndex((item) => item.id === previewItem.id)
@@ -153,6 +173,7 @@ export function MediaGrid({
               }`}
             >
               {value === "" ? t("All", "الكل") : value === "image" ? t("Photos", "الصور") : t("Videos", "الفيديوهات")}
+              {filterCount(value) !== null ? ` (${filterCount(value)})` : ""}
             </button>
           ))}
         </div>
@@ -170,7 +191,7 @@ export function MediaGrid({
         </p>
       ) : !data || data.items.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line bg-card/50 p-8 text-center text-sm text-secondary">
-          {t("No media uploaded to this session yet.", "لم يتم رفع أي وسائط لهذه الجلسة بعد.")}
+          {emptyMessage}
         </p>
       ) : (
         <>
@@ -186,6 +207,16 @@ export function MediaGrid({
                   setPreviewItem(item);
                 }}
                 onSetCover={() => setCover(item.id)}
+                onToggleDownload={() =>
+                  updateDownloadPermission.mutate({
+                    id: item.id,
+                    downloadEnabled: !item.downloadEnabled
+                  })
+                }
+                updatingDownload={
+                  updateDownloadPermission.isPending &&
+                  updateDownloadPermission.variables?.id === item.id
+                }
                 onDelete={() => setPendingDelete(item)}
               />
             ))}
@@ -232,6 +263,8 @@ function MediaTile({
   isCover,
   onPreview,
   onSetCover,
+  onToggleDownload,
+  updatingDownload,
   onDelete
 }: {
   item: Media;
@@ -239,6 +272,8 @@ function MediaTile({
   isCover: boolean;
   onPreview: () => void;
   onSetCover: () => void;
+  onToggleDownload: () => void;
+  updatingDownload: boolean;
   onDelete: () => void;
 }) {
   const { t } = useLanguage();
@@ -280,7 +315,7 @@ function MediaTile({
         ) : null}
 
         {item.processingStatus !== "ready" ? (
-          <span className={`tracking-nav absolute end-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-medium uppercase ${statusStyles[item.processingStatus]}`}>
+          <span className={`tracking-nav absolute top-2 rounded-full px-2 py-0.5 text-[9px] font-medium uppercase ${item.source === "upload" ? "end-12" : "end-2"} ${statusStyles[item.processingStatus]}`}>
             {statusLabel}
           </span>
         ) : null}
@@ -313,6 +348,35 @@ function MediaTile({
             }`}
           >
             <StarIcon className="h-4 w-4" filled={isCover} />
+          </button>
+        ) : null}
+
+        {item.source === "upload" ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleDownload();
+            }}
+            disabled={updatingDownload}
+            aria-pressed={item.downloadEnabled}
+            title={
+              item.downloadEnabled
+                ? t("Disable downloads", "تعطيل التنزيل")
+                : t("Enable downloads", "تفعيل التنزيل")
+            }
+            aria-label={
+              item.downloadEnabled
+                ? t(`Disable downloads for ${item.originalName}`, `تعطيل تنزيل ${item.originalName}`)
+                : t(`Enable downloads for ${item.originalName}`, `تفعيل تنزيل ${item.originalName}`)
+            }
+            className={`absolute end-2 top-2 flex h-9 w-9 items-center justify-center rounded-md shadow-lg backdrop-blur-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-wait disabled:opacity-60 ${
+              item.downloadEnabled
+                ? "bg-white/92 text-primary hover:bg-accent hover:text-white"
+                : "bg-danger text-white hover:bg-danger/90"
+            }`}
+          >
+            <BanIcon className="h-4 w-4" />
           </button>
         ) : null}
 

@@ -1,10 +1,19 @@
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject
+} from "react";
 import { createPortal } from "react-dom";
 import { LogoLoader } from "@/components/LogoLoader";
 import {
+  CheckIcon,
   ChevronDownIcon,
   EyeIcon,
   ImageIcon,
+  LinkIcon,
   MoreHorizontalIcon,
   PlusIcon,
   UsersIcon
@@ -20,7 +29,8 @@ import { formatDate, formatNumber } from "@/utils/format";
 import {
   PAGE_SIZE_OPTIONS,
   STATUS_STYLES,
-  VISIBILITY_STYLES
+  VISIBILITY_STYLES,
+  publicSessionUrl
 } from "./sessionPageUtils";
 import { RowSelectMenu } from "./RowSelectMenu";
 import { SessionCard } from "./SessionCard";
@@ -43,6 +53,47 @@ type SessionActionHandlers = {
   onDelete: (session: PhotoSession) => void;
   onMenuChange: MenuSetter;
 };
+
+/**
+ * Copies a session's public link; owned by the table, not by its callers.
+ * `linkCopied` is true for the row whose link was just copied.
+ */
+type CopyLinkHandler = {
+  onCopyLink: (session: PhotoSession) => void;
+  linkCopied: boolean;
+};
+
+/** How long the green tick shows after a copy. */
+const COPIED_MS = 1500;
+
+/**
+ * Put text on the clipboard. `navigator.clipboard` exists only on secure
+ * origins, so a plain-HTTP admin falls back to the older selection copy.
+ */
+async function writeClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* refused — try the fallback */
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+  }
+}
 
 export function SessionsTableCard({
   sessions,
@@ -82,6 +133,23 @@ export function SessionsTableCard({
   onOpenMedia: (session: PhotoSession) => void;
 } & SessionActionHandlers) {
   const { t } = useLanguage();
+  /** The session whose link was just copied, while its tick is showing. */
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+
+  const copyLink = async (session: PhotoSession) => {
+    const url = publicSessionUrl(session);
+    if (!url || !(await writeClipboard(url))) return;
+    setCopiedId(session.id);
+    window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => {
+      setCopiedId(null);
+      // A copy from the options menu leaves it open to show the tick, then
+      // closes it — unless another row's menu has been opened since.
+      actions.onMenuChange((current) => (current === session.id ? null : current));
+    }, COPIED_MS);
+  };
 
   const statusLabel = (value: SessionStatus) =>
     value === "active"
@@ -158,6 +226,8 @@ export function SessionsTableCard({
                     statusLabel={statusLabel}
                     updatePending={updatePending}
                     onOpenMedia={onOpenMedia}
+                    onCopyLink={(target) => void copyLink(target)}
+                    linkCopied={copiedId === session.id}
                     {...actions}
                   />
                 ))}
@@ -186,6 +256,8 @@ function SessionRow({
   statusLabel,
   updatePending,
   onOpenMedia,
+  onCopyLink,
+  linkCopied,
   ...actions
 }: {
   session: PhotoSession;
@@ -193,7 +265,8 @@ function SessionRow({
   statusLabel: (status: SessionStatus) => string;
   updatePending: boolean;
   onOpenMedia: (session: PhotoSession) => void;
-} & SessionActionHandlers) {
+} & SessionActionHandlers &
+  CopyLinkHandler) {
   const { t, language } = useLanguage();
   const actionButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -283,62 +356,89 @@ function SessionRow({
         </RowSelectMenu>
       </td>
       <td className="px-3 py-4 lg:px-4">
-        <RowSelectMenu<SessionVisibility>
-          value={session.visibility}
-          disabled={updatePending}
-          onChange={(next) => actions.onSetVisibility(session, next)}
-          /*
-            Visibility only takes effect once a session is published, so an
-            unpublished row shows its chosen value struck through rather than
-            claiming the album is reachable.
-          */
-          title={
-            session.isPublic
-              ? undefined
-              : t(
-                  "Publish the session for this to take effect.",
-                  "انشر الجلسة ليصبح هذا ساري المفعول."
-                )
-          }
-          options={[
-            {
-              value: "public",
-              label: t("Public", "عام"),
-              description: t(
-                "Listed, anyone can see it.",
-                "يظهر في القائمة، ويمكن لأي شخص مشاهدته."
-              )
-            },
-            {
-              value: "private",
-              label: t("Private", "خاص"),
-              description: t(
-                "Not listed. Opens by link, behind the password if one is set.",
-                "لا يظهر في القائمة. يُفتح بالرابط، وخلف كلمة المرور إن وُجدت."
-              )
-            },
-            {
-              value: "protected",
-              label: t("Protected", "محمي"),
-              description: t(
-                "Listed, but a password is needed to see it.",
-                "يظهر في القائمة، لكن تلزم كلمة مرور لمشاهدته."
-              )
+        <div className="flex items-center gap-1.5">
+          <RowSelectMenu<SessionVisibility>
+            value={session.visibility}
+            disabled={updatePending}
+            onChange={(next) => actions.onSetVisibility(session, next)}
+            /*
+              Visibility only takes effect once a session is published, so an
+              unpublished row shows its chosen value struck through rather than
+              claiming the album is reachable.
+            */
+            title={
+              session.isPublic
+                ? undefined
+                : t(
+                    "Publish the session for this to take effect.",
+                    "انشر الجلسة ليصبح هذا ساري المفعول."
+                  )
             }
-          ]}
-          /*
-            Coloured by the visibility itself. An unpublished session keeps its
-            colour but is struck through, since the setting is chosen but not
-            yet in force.
-          */
-          triggerClassName={`inline-flex max-w-full items-center gap-1.5 truncate rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-            VISIBILITY_STYLES[session.visibility]
-          } ${session.isPublic ? "" : "line-through opacity-70"}`}
-        >
-          <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-          {visibilityLabel(session.visibility)}
-          <ChevronDownIcon className="h-3 w-3 shrink-0" />
-        </RowSelectMenu>
+            options={[
+              {
+                value: "public",
+                label: t("Public", "عام"),
+                description: t(
+                  "Listed, anyone can see it.",
+                  "يظهر في القائمة، ويمكن لأي شخص مشاهدته."
+                )
+              },
+              {
+                value: "private",
+                label: t("Private", "خاص"),
+                description: t(
+                  "Not listed. Opens by link, behind the password if one is set.",
+                  "لا يظهر في القائمة. يُفتح بالرابط، وخلف كلمة المرور إن وُجدت."
+                )
+              },
+              {
+                value: "protected",
+                label: t("Protected", "محمي"),
+                description: t(
+                  "Listed, but a password is needed to see it.",
+                  "يظهر في القائمة، لكن تلزم كلمة مرور لمشاهدته."
+                )
+              }
+            ]}
+            /*
+              Coloured by the visibility itself. An unpublished session keeps its
+              colour but is struck through, since the setting is chosen but not
+              yet in force.
+            */
+            triggerClassName={`inline-flex max-w-full items-center gap-1.5 truncate rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              VISIBILITY_STYLES[session.visibility]
+            } ${session.isPublic ? "" : "line-through opacity-70"}`}
+          >
+            <EyeIcon className="h-3.5 w-3.5 shrink-0" />
+            {visibilityLabel(session.visibility)}
+            <ChevronDownIcon className="h-3 w-3 shrink-0" />
+          </RowSelectMenu>
+          {/* A private album is listed nowhere, so its link is how anyone gets
+              in — kept one click away on the row itself. */}
+          {session.visibility === "private" ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCopyLink(session);
+              }}
+              title={linkCopied ? t("Copied", "تم النسخ") : t("Copy link", "نسخ الرابط")}
+              aria-label={t("Copy link", "نسخ الرابط")}
+              aria-live="polite"
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                linkCopied
+                  ? "border-success bg-success/10 text-success"
+                  : "border-line text-secondary hover:border-accent hover:text-accent"
+              }`}
+            >
+              {linkCopied ? (
+                <CheckIcon className="h-4 w-4" />
+              ) : (
+                <LinkIcon className="h-4 w-4" />
+              )}
+            </button>
+          ) : null}
+        </div>
       </td>
       <td className="px-3 py-4 lg:px-4">
         <span className="inline-flex items-center gap-2 text-primary">
@@ -373,6 +473,8 @@ function SessionRow({
             <SessionActionMenu
               anchorRef={actionButtonRef}
               session={session}
+              onCopyLink={onCopyLink}
+              linkCopied={linkCopied}
               {...actions}
             />
           ) : null}
@@ -385,16 +487,19 @@ function SessionRow({
 function SessionActionMenu({
   anchorRef,
   session,
+  onCopyLink,
+  linkCopied,
   ...actions
 }: {
   anchorRef: RefObject<HTMLButtonElement | null>;
   session: PhotoSession;
-} & SessionActionHandlers) {
+} & SessionActionHandlers &
+  CopyLinkHandler) {
   const { t } = useLanguage();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const menuWidth = 224;
-  const estimatedMenuHeight = session.status === "archived" ? 288 : 336;
+  const estimatedMenuHeight = session.status === "archived" ? 324 : 372;
   const menuGap = 4;
 
   useLayoutEffect(() => {
@@ -442,6 +547,16 @@ function SessionActionMenu({
       </MenuItem>
       <MenuItem onClick={() => actions.onDownloads(session)}>
         {t("View downloads", "عرض التحميلات")}
+      </MenuItem>
+      <MenuItem onClick={() => onCopyLink(session)}>
+        {linkCopied ? (
+          <span className="inline-flex items-center gap-2 text-success" aria-live="polite">
+            <CheckIcon className="h-4 w-4" />
+            {t("Copied", "تم النسخ")}
+          </span>
+        ) : (
+          t("Copy link", "نسخ الرابط")
+        )}
       </MenuItem>
       {/* Status is set from the column's dropdown, so it is not repeated here. */}
       <MenuItem onClick={() => actions.onTogglePublic(session)}>

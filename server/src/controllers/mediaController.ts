@@ -42,6 +42,14 @@ export const mediaController = {
     res.status(200).json(media);
   },
 
+  async updateDownloadPermission(req: Request, res: Response): Promise<void> {
+    const media = await mediaService.updateDownloadPermission(
+      req.params.id as string,
+      req.body.downloadEnabled as boolean
+    );
+    res.status(200).json(media);
+  },
+
   async delete(req: Request, res: Response): Promise<void> {
     await mediaService.delete(req.params.id as string);
     res.status(204).send();

@@ -19,7 +19,7 @@ import {
 } from "@/components/icons";
 import { useLanguage } from "@/i18n/languageContext";
 import { usePageContentQuery, useUpdatePageContent } from "@/hooks/usePageContent";
-import { CmsEditorLayout } from "@/components/CmsEditorLayout";
+import { CmsPreviewPanel } from "@/components/CmsPreviewPanel";
 import { useSessionsQuery } from "@/hooks/useSessions";
 import {
   CATEGORY_LABELS,
@@ -43,7 +43,7 @@ const DEFAULT_CATEGORIES: CmsCategory[] = SESSION_CATEGORIES.map((id) => ({
   label: CATEGORY_LABELS[id].en
 }));
 
-const TAB_KEYS: WorkspaceTabKey[] = ["content", "sessions", "media"];
+const TAB_KEYS: WorkspaceTabKey[] = ["content", "sessions", "media", "preview"];
 
 /** The tab the workspace opens on when the URL names none — sessions are the
  * day-to-day work, so the admin lands there rather than on page content. */
@@ -252,7 +252,8 @@ export default function CategoryPagesManager() {
       ...(sessionsPending ? {} : { badge: sessionsData?.total ?? 0 })
     },
     { key: "media", labelEn: "Media", labelAr: "الوسائط", icon: UploadIcon },
-    { key: "content", labelEn: "Content", labelAr: "المحتوى", icon: ImageIcon }
+    { key: "content", labelEn: "Content", labelAr: "المحتوى", icon: ImageIcon },
+    { key: "preview", labelEn: "Preview", labelAr: "المعاينة", icon: EyeIcon }
   ];
 
   return (
@@ -373,23 +374,12 @@ export default function CategoryPagesManager() {
       ) : null}
 
       <div className="min-w-0 space-y-5">
-        {/*
-          Only the content tab gets a preview. The sessions and media tabs
-          manage what the gallery draws from rather than editing this page's
-          own copy, so a preview of it would not reflect what is being changed.
-        */}
         {activeTab === "content" ? (
           isPending ? (
             <Card className="flex min-h-80 items-center justify-center">
               <LogoLoader />
             </Card>
           ) : (
-            <CmsEditorLayout
-              previewPageKey={pageKey}
-              previewPath={`/category/${selected}`}
-              previewContent={{ hero }}
-              previewLocale={locale}
-            >
             <Card className="p-5">
               <div className="mb-4 flex items-center gap-3">
                 <ImageIcon className="h-5 w-5 shrink-0 text-accent" />
@@ -423,8 +413,21 @@ export default function CategoryPagesManager() {
                 />
               </div>
             </Card>
-            </CmsEditorLayout>
           )
+        ) : null}
+
+        {activeTab === "preview" ? (
+          <div className="h-[calc(100vh-15rem)] min-h-150">
+            <CmsPreviewPanel
+              pageKey={pageKey}
+              path={`/category/${selected}`}
+              // The draft lets the preview show content edits before they are
+              // published. Saved session and media updates are read directly
+              // by the framed public category page.
+              content={{ hero }}
+              locale={locale}
+            />
+          </div>
         ) : null}
 
         {activeTab === "sessions" ? (

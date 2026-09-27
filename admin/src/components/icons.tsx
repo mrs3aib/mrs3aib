@@ -67,6 +67,16 @@ export function DownloadIcon({ className }: IconProps) {
   );
 }
 
+/** A clear "not allowed" mark for controls that prevent an action. */
+export function BanIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className ?? "h-5 w-5"}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className ?? "h-5 w-5"}>
@@ -381,6 +391,15 @@ export function DroneIcon({ className }: IconProps) {
     <svg {...base} className={className ?? "h-5 w-5"}>
       <rect x="9" y="9" width="6" height="6" rx="1.5" />
       <path d="m9 9-3-3m9 3 3-3m-9 9-3 3m9-3 3 3M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM16 16h4v4h-4z" />
+    </svg>
+  );
+}
+
+export function LinkIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className ?? "h-5 w-5"}>
+      <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
     </svg>
   );
 }

@@ -55,6 +55,36 @@ type AlbumActionLabels = {
   selectPrompt: string;
 };
 
+/**
+ * A video length badge: `1:32`, or `1:02:03` past the hour. Rendered as
+ * `<time>` with an ISO 8601 duration so it reads as a length, not a clock.
+ */
+function VideoDuration({
+  seconds,
+  className
+}: {
+  seconds: number;
+  className?: string;
+}) {
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const label = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+
+  return (
+    <time
+      dateTime={`PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${s}S`}
+      // A timeline reads left to right in every locale; "1:32" must not flip.
+      dir="ltr"
+      className={`pointer-events-none rounded font-medium tabular-nums leading-none ${className ?? ""}`}
+    >
+      {label}
+    </time>
+  );
+}
+
 /** Which media the grid is showing. */
 type MediaFilter = "all" | "photos" | "videos";
 
@@ -411,6 +441,8 @@ export default function AlbumView({
   const [filter, setFilter] = useState<MediaFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  /** The lightbox is showing only the starred item, which the grid lacks. */
+  const [coverOnly, setCoverOnly] = useState(false);
   const {
     locale,
     title: albumTitle,
@@ -512,8 +544,12 @@ export default function AlbumView({
     const at = album.coverKey
       ? visiblePhotos.findIndex((p) => p.key === album.coverKey)
       : -1;
-    setLightboxIndex(at >= 0 ? at : 0);
-  }, [album.coverKey, visiblePhotos]);
+    // Not paged in yet: show the starred item on its own rather than
+    // whichever item happens to be first.
+    const alone = at < 0 && Boolean(album.coverItem);
+    setCoverOnly(alone);
+    setLightboxIndex(alone ? 0 : Math.max(at, 0));
+  }, [album.coverKey, album.coverItem, visiblePhotos]);
 
   const allSelected =
     selectablePhotos.length > 0 &&
@@ -544,7 +580,9 @@ export default function AlbumView({
 
     // Linked videos have no file of ours to archive; the server would reject
     // their ids outright, failing the whole selection over one embed.
-    const archivable = chosen.filter((photo) => !photo.youTubeId);
+    const archivable = chosen.filter(
+      (photo) => !photo.youTubeId && photo.downloadEnabled
+    );
     if (archivable.length === 0) {
       failDownload();
       return;
@@ -667,7 +705,10 @@ export default function AlbumView({
         viewMode={viewMode}
         selectedKeys={selectedKeys}
         onToggleSelected={toggleSelected}
-        onOpen={(index) => setLightboxIndex(index)}
+        onOpen={(index) => {
+          setCoverOnly(false);
+          setLightboxIndex(index);
+        }}
         loadingMore={loadingMore}
         hasMore={hasMore}
         onLoadMore={loadMore}
@@ -679,10 +720,13 @@ export default function AlbumView({
   const overlays = (
     <>
       <MediaLightbox
-        items={visiblePhotos}
+        items={coverOnly && album.coverItem ? [album.coverItem] : visiblePhotos}
         index={lightboxIndex}
         title={albumTitle}
-        onClose={() => setLightboxIndex(null)}
+        onClose={() => {
+          setLightboxIndex(null);
+          setCoverOnly(false);
+        }}
         onNavigate={setLightboxIndex}
       />
 
@@ -844,6 +888,12 @@ function AlbumPreview({
 
   return (
     <div className="lg:col-span-6">
+      {isVideoCover || isEmbedCover ? (
+        <p className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-accent">
+          <VideoCameraIcon className="h-5 w-5" />
+          {t("watchVideo")}
+        </p>
+      ) : null}
       <div className="gradient-border-frame aspect-[4/3] w-full rounded-2xl md:aspect-[16/11]">
         <div className="group relative h-full w-full overflow-hidden rounded-2xl bg-neutral-900">
           {isVideoCover && playing ? (
@@ -878,6 +928,12 @@ function AlbumPreview({
                   alt=""
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain p-8 opacity-70"
+                />
+              ) : null}
+              {(isVideoCover || isEmbedCover) && album.coverItem?.duration ? (
+                <VideoDuration
+                  seconds={album.coverItem.duration}
+                  className="absolute bottom-3 end-3 z-30 bg-black/75 px-2 py-1 text-sm text-white"
                 />
               ) : null}
               {isVideoCover || onOpen ? (
@@ -1390,10 +1446,13 @@ function AlbumPhotoGrid({
                   {title} {index + 1}
                 </span>
                 <span className="flex items-center gap-2">
+                  {photo.duration ? (
+                    <VideoDuration seconds={photo.duration} className="bg-white/10 px-2 py-0.5 text-[10px] text-white/70" />
+                  ) : null}
                   <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] uppercase text-white/70">
                     {photo.type === "video" ? t("video") : t("photos")}
                   </span>
-                  {photo.youTubeId || !allowDownloads ? null : (
+                  {photo.youTubeId || !photo.downloadEnabled || !allowDownloads ? null : (
                     <button
                       type="button"
                       onClick={() => void onDownloadPhoto(photo, index)}
@@ -1425,10 +1484,16 @@ function AlbumPhotoGrid({
                 <PlayIcon className={isRows ? "h-3 w-3" : "h-5 w-5"} />
               </span>
             ) : null}
+            {photo.duration && !isRows ? (
+              <VideoDuration
+                seconds={photo.duration}
+                className="absolute bottom-2 end-2 bg-black/75 px-1.5 py-0.5 text-xs text-white"
+              />
+            ) : null}
 
             {/* Always visible, so no "select" mode is needed to start picking.
                 A linked video has no file to download, so it gets no checkbox. */}
-            {photo.youTubeId ? null : (
+            {photo.youTubeId || !photo.downloadEnabled ? null : (
             <button
               type="button"
               onClick={(e) => {
@@ -1451,7 +1516,7 @@ function AlbumPhotoGrid({
             </button>
             )}
 
-            {!isRows && !photo.youTubeId && allowDownloads ? (
+            {!isRows && !photo.youTubeId && photo.downloadEnabled && allowDownloads ? (
               <button
                 type="button"
                 onClick={(e) => {

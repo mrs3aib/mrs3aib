@@ -98,6 +98,8 @@ export type GalleryMedia = {
    * previews existed.
    */
   previewDataUrl?: string | null;
+  /** The admin may keep an item visible while preventing it being saved. */
+  downloadEnabled?: boolean;
 };
 
 /** One published session as listed on a category page. */
@@ -151,6 +153,11 @@ export type GalleryPayload = {
     watermarkUrl: string | null;
   };
   media: GalleryMedia[];
+  /**
+   * The item starred in the admin, sent on every page. Absent on an older
+   * backend, and null when nothing is starred.
+   */
+  coverMedia?: GalleryMedia | null;
   /** Absent on an older backend, which always returned everything. */
   page?: { offset: number; returned: number; total: number };
 };
@@ -186,6 +193,13 @@ export type ResolvedPhoto = {
    * still and the lightbox embeds a player, so no file of ours is involved.
    */
   youTubeId?: string;
+  /**
+   * Length in seconds, read from the file when a video is processed. Absent
+   * for images, linked videos, and anything still processing.
+   */
+  duration?: number;
+  /** False when this visible item is excluded from downloads and ZIPs. */
+  downloadEnabled: boolean;
 };
 
 export type ResolvedAlbum = Album & {
@@ -222,6 +236,11 @@ export type ResolvedAlbum = Album & {
    * album — a pinned cover is frequently neither first nor even an image.
    */
   coverKey?: string;
+  /**
+   * The starred item itself, which on a paged album may not be loaded yet —
+   * the hero opens it from here when the grid does not have it.
+   */
+  coverItem?: ResolvedPhoto;
   /**
    * Blur-up preview for the cover, when it comes from one of the album's own
    * images. Absent for a separately uploaded session cover, which has no media
@@ -336,7 +355,11 @@ function toResolvedPhoto(m: GalleryMedia): ResolvedPhoto {
     type: m.type,
     ...(m.sourceUrl ? { sourceUrl: m.sourceUrl } : {}),
     ...(m.previewDataUrl ? { previewDataUrl: m.previewDataUrl } : {}),
-    ...(youTubeId ? { youTubeId } : {})
+    ...(youTubeId ? { youTubeId } : {}),
+    ...(m.type === "video" && m.duration && m.duration > 0
+      ? { duration: m.duration }
+      : {}),
+    downloadEnabled: m.downloadEnabled !== false
   };
 }
 
@@ -421,8 +444,15 @@ export async function resolveCategoryAlbums(
 ): Promise<ResolvedAlbum[]> {
   const payload = await safeGet<{ albums: PublicAlbum[] }>(
     `/public/categories/${category}/albums`,
-    // Cover URLs are signed, so this expires with them.
-    { policy: "signed" }
+    /*
+     * Cover URLs are signed, and `signed`'s five-minute ceiling is not a
+     * ceiling at all after an idle spell: the data cache answers the first
+     * request with whatever it holds, however old, and refreshes behind it.
+     * That handed the category page covers whose signatures had lapsed hours
+     * before. The listing is one query plus a signature per card, cheap enough
+     * to fetch fresh on every render.
+     */
+    { policy: "never" }
   );
 
   return (payload?.albums ?? []).map((summary, index) =>
@@ -652,11 +682,27 @@ export function albumFromPayload(
   // rendered value below comes from the session itself.
   const base = buildFallbackShape(category, 0);
 
-  // The item the cover shows — pinned if the admin chose one, otherwise the
-  // same automatic pick the listing makes, so both views agree.
+  /**
+   * The album hero features the item starred in the admin. The uploaded
+   * session cover belongs to the card outside the album (and its share image);
+   * inside, it only stands in when the album has no media to show.
+   *
+   * The server sends the starred item on its own, since on a paged response it
+   * is often not among the first items. An older backend does not, so the
+   * pick then falls back to searching this page.
+   */
   const sessionCoverUrl = payload.session.coverUrl ?? undefined;
-  const coverKey = sessionCoverUrl ? undefined : coverKeyFrom(payload, photos);
-  const cover = photos.find((p) => p.key === coverKey);
+  const cover = payload.coverMedia
+    ? toResolvedPhoto(payload.coverMedia)
+    : photos.find((p) => p.key === coverKeyFrom(payload, photos));
+  /**
+   * A starred video plays in the hero, but its own thumbnail is just whatever
+   * frame the encoder grabbed. The uploaded cover is the picture the admin
+   * chose to represent the album, so it stands in front of the video until
+   * play is pressed.
+   */
+  const videoPoster =
+    cover?.type === "video" && sessionCoverUrl ? sessionCoverUrl : undefined;
 
   return {
     ...base,
@@ -675,10 +721,8 @@ export function albumFromPayload(
       payload.session.photoCount ??
       payload.media.filter((m) => m.type === "image").length,
     photos,
-    ...(cover ? { coverKey: cover.key } : {}),
-    // Only when the cover is one of the album's own photographs; a session
-    // cover is a separate upload with no preview generated for it.
-    ...(!sessionCoverUrl && cover?.previewDataUrl
+    ...(cover ? { coverKey: cover.key, coverItem: cover } : {}),
+    ...(cover?.previewDataUrl
       ? { coverPreviewDataUrl: cover.previewDataUrl }
       : {}),
     // The pinned cover wins, whatever its kind. Preferring the first image
@@ -689,13 +733,13 @@ export function albumFromPayload(
      * all. It used to fall back to a seeded stock image, which put a photo
      * the studio never took at the head of a real gallery.
      */
-    coverUrl: sessionCoverUrl ?? cover?.url ?? "",
-    ...(cover?.type === "video" && !sessionCoverUrl
+    coverUrl: videoPoster ?? cover?.url ?? sessionCoverUrl ?? "",
+    ...(cover?.type === "video"
       ? { coverType: "video" as const }
       : {}),
     // Only a file we host can play inline; a linked video has no such URL and
     // plays from its embed in the lightbox instead.
-    ...(cover?.type === "video" && !sessionCoverUrl && !cover.youTubeId && cover.sourceUrl
+    ...(cover?.type === "video" && !cover.youTubeId && cover.sourceUrl
       ? { coverVideoUrl: cover.sourceUrl }
       : {}),
     ...(payload.settings?.watermarkPreviewImages && payload.settings.watermarkUrl

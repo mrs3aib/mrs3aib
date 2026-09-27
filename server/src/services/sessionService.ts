@@ -7,6 +7,7 @@ import type {
 import { sessionRepository, type SessionSort } from "@/repositories/sessionRepository";
 import { clientRepository } from "@/repositories/clientRepository";
 import { mediaRepository } from "@/repositories/mediaRepository";
+import { gallerySettingsRepository } from "@/repositories/gallerySettingsRepository";
 import { slugify } from "@/utils/slugify";
 import { toSkipTake, paginate, type PaginatedResult } from "@/utils/pagination";
 import { NotFoundError } from "@/types/errors";
@@ -219,6 +220,25 @@ export const sessionService = {
         ? { coverImage: input.coverImage || null }
         : {})
     });
+
+    /**
+     * Public means anyone can open it, so switching to public drops the
+     * gallery password too.
+     *
+     * The public site gates on the password alone (see `isPasswordGated`), so
+     * an album switched to public kept asking for it — and kept its lock on the
+     * card — with nothing in the visibility control to say why. Cleared the
+     * same way the settings panel turns protection off.
+     */
+    if (input.visibility === "public") {
+      const settings = await gallerySettingsRepository.findBySessionId(id);
+      if (settings?.passwordProtected || settings?.passwordHash) {
+        await gallerySettingsRepository.upsert(id, {
+          passwordProtected: false,
+          passwordHash: null
+        });
+      }
+    }
 
     // Publishing, unpublishing, archiving, re-titling, or re-pinning a cover
     // all change what the public listings render, so any of them drops the

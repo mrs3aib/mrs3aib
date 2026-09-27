@@ -35,6 +35,7 @@ export type MediaDto = {
   source: MediaSource;
   externalUrl: string | null;
   externalId: string | null;
+  downloadEnabled: boolean;
   createdAt: string;
 };
 
@@ -77,6 +78,7 @@ function toDto(media: Media): MediaDto {
     source: media.source,
     externalUrl: media.externalUrl,
     externalId: media.externalId,
+    downloadEnabled: media.downloadEnabled,
     createdAt: media.createdAt.toISOString()
   };
 }
@@ -273,6 +275,12 @@ export const mediaService = {
       });
       return toDto(updated);
     }
+  },
+
+  async updateDownloadPermission(mediaId: string, downloadEnabled: boolean): Promise<MediaDto> {
+    const media = await mediaRepository.findById(mediaId);
+    if (!media) throw new NotFoundError("Media not found");
+    return toDto(await mediaRepository.update(mediaId, { downloadEnabled }));
   },
 
   async delete(id: string): Promise<void> {
