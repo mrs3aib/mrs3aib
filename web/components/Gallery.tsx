@@ -8,6 +8,7 @@ import type { HomepageCmsContent } from "@/lib/cms";
 import { startScroll, stopScroll } from "@/lib/scroll";
 import { FadeUp } from "./Reveal";
 import { Link } from "@/i18n/navigation";
+import { MediaCard } from "./AlbumCard";
 import { ChevronLeft, ChevronRight, CloseIcon } from "./icons";
 import ResilientImage from "./ResilientImage";
 
@@ -205,47 +206,23 @@ export default function Gallery({
           </div>
         </FadeUp>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {visibleItems.map((item, index) => (
             <FadeUp key={`${item.imageUrl}-${index}`} delay={(index % 4) * 0.08}>
-              <button
-                type="button"
+              <MediaCard
+                imageUrl={item.imageUrl}
+                unoptimized={item.signed}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                title={item.title}
+                subtitle={item.category}
+                // Says what opening the card gets you, which the lightbox's
+                // own "View project" button then acts on.
+                countLabel={
+                  item.assetCount ? t("assets", { count: item.assetCount }) : null
+                }
                 onClick={() => open(index)}
-                onMouseEnter={() => prefetch(item)}
-                onFocus={() => prefetch(item)}
-                // Touch has no hover; the press itself lands well before the
-                // click, so the fetch starts a beat earlier than it otherwise would.
-                onTouchStart={() => prefetch(item)}
-                className="group relative block min-h-52 w-full overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none"
-              >
-                <ResilientImage
-                  src={item.imageUrl}
-                  alt={item.title}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                  className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-focus-visible:scale-110"
-                  unoptimized={item.signed}
-                />
-                <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/20 to-black/90 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-focus-visible:opacity-80" />
-                <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-focus-visible:bg-accent/10" />
-
-                <div className="absolute inset-x-0 bottom-0 translate-y-1 px-5 pb-5 pt-16 transition-transform duration-700 group-hover:translate-y-0 group-active:translate-y-0 group-focus-visible:translate-y-0">
-                  <h3 className="font-display text-base font-semibold leading-snug text-white md:text-lg">
-                    {item.title}
-                  </h3>
-                  {item.category ? (
-                    <p className="mt-2 text-xs text-primary/80">{item.category}</p>
-                  ) : null}
-                  {/* The count stands in for the old "View project" link: it
-                      says what opening the card gets you, which the lightbox's
-                      own button then acts on. */}
-                  {item.assetCount ? (
-                    <span className="touch-reveal mt-3 inline-block translate-y-2 border-b border-accent pb-0.5 text-xs text-accent opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100 group-active:translate-y-0 group-active:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                      {t("assets", { count: item.assetCount })}
-                    </span>
-                  ) : null}
-                </div>
-              </button>
+                onIntent={() => prefetch(item)}
+              />
             </FadeUp>
           ))}
         </div>
