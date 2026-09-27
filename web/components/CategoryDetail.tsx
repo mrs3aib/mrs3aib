@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useInView } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -40,6 +43,22 @@ export default function CategoryDetail({
    * the modal's heading correct without looking the album up again.
    */
   const [locked, setLocked] = useState<{ id: string; title: string } | null>(null);
+  const router = useRouter();
+  const refreshedForCovers = useRef(false);
+  /**
+   * Re-sign the covers when one will not load.
+   *
+   * The server renders fresh signatures, but the browser's back button and
+   * Next's router cache can put an older payload back on screen, and by then
+   * its signed URLs may have lapsed. One refresh fetches this page again with
+   * new URLs; the new `src` resets each card's image. Only once per visit, so a
+   * cover that is genuinely missing cannot loop the page.
+   */
+  const refreshCovers = useCallback(() => {
+    if (refreshedForCovers.current) return;
+    refreshedForCovers.current = true;
+    router.refresh();
+  }, [router]);
   const knownId = (categories as readonly string[]).includes(id)
     ? (id as CategoryId)
     : null;
@@ -116,7 +135,7 @@ export default function CategoryDetail({
         <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-line to-transparent" />
         <div className="absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/45 to-transparent" />
 
-        <div className="relative mx-auto max-w-7xl">
+        <div className="relative mx-auto max-w-[90rem]">
           <FadeUp>
             <div className="mb-7 flex items-center justify-center gap-4 text-center md:mb-9 md:gap-6">
               <span className="h-px w-12 bg-linear-to-r from-transparent to-accent/70" />
@@ -137,7 +156,7 @@ export default function CategoryDetail({
             <p className="py-16 text-center text-sm text-white/70">{t("empty")}</p>
           ) : null}
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto grid w-[75%] items-start gap-5 sm:w-full sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {albums.map((album, index) => {
               const itemKey = `items.${album.id}` as const;
               // Live sessions carry their own title/type; placeholder albums
@@ -164,44 +183,59 @@ export default function CategoryDetail({
                           }
                         : undefined
                     }
-                    className="group relative block aspect-16/10 w-full cursor-pointer overflow-hidden rounded-md border border-white/10 bg-black/60 text-center shadow-2xl shadow-black/25 transition-colors duration-500 hover:border-accent/45 active:border-accent/45 focus-visible:border-accent/45 focus-visible:outline-none sm:aspect-4/3"
+                    className="group relative block w-full cursor-pointer text-center focus-visible:outline-none"
                   >
-                    <ResilientImage
-                      src={album.coverUrl}
-                      alt={albumTitle}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-focus-visible:scale-110"
-                      unoptimized={album.isLive}
+                    <AlbumCardBody
+                      media={
+                        <>
+                          <ResilientImage
+                            src={album.coverUrl}
+                            alt={albumTitle}
+                            fill
+                            sizes="(max-width: 640px) 75vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                            className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-focus-visible:scale-110"
+                            unoptimized={album.isLive}
+                            {...(album.coverPreviewDataUrl
+                              ? { previewDataUrl: album.coverPreviewDataUrl }
+                              : {})}
+                            onFailed={album.isLive ? refreshCovers : undefined}
+                          />
+                          <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/25 to-black/95 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-focus-visible:opacity-80" />
+                          <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-focus-visible:bg-accent/10" />
+
+                          {/* Says the album is gated before the click, so the prompt
+                              is expected rather than a surprise. */}
+                          {album.requiresPassword ? (
+                            <span
+                              title={ta("locked")}
+                              className="absolute end-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/60 text-accent backdrop-blur-sm"
+                            >
+                              <LockIcon className="h-4 w-4" />
+                              <span className="sr-only">{ta("locked")}</span>
+                            </span>
+                          ) : null}
+                        </>
+                      }
+                      details={
+                        <>
+                          <h3 className="font-display text-lg font-semibold leading-snug text-white transition-colors duration-500 group-hover:text-accent group-active:text-accent group-focus-visible:text-accent">
+                            {albumTitle}
+                          </h3>
+                          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-primary/60">
+                            {albumType ? (
+                              <>
+                                <span className="truncate">{albumType}</span>
+                                <span aria-hidden="true" className="h-3 w-px bg-white/20" />
+                              </>
+                            ) : null}
+                            <span className="inline-flex shrink-0 items-center gap-1.5 text-accent">
+                              <CameraIcon className="h-3.5 w-3.5" />
+                              {photoLabel} {ta("photos")}
+                            </span>
+                          </div>
+                        </>
+                      }
                     />
-                    <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/25 to-black/95 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-focus-visible:opacity-80" />
-                    <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-focus-visible:bg-accent/10" />
-
-                    {/* Says the album is gated before the click, so the prompt
-                        is expected rather than a surprise. */}
-                    {album.requiresPassword ? (
-                      <span
-                        title={ta("locked")}
-                        className="absolute end-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/60 text-accent backdrop-blur-sm"
-                      >
-                        <LockIcon className="h-4 w-4" />
-                        <span className="sr-only">{ta("locked")}</span>
-                      </span>
-                    ) : null}
-                    
-
-                    <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-14 transition-all duration-700 sm:translate-y-4 sm:px-5 sm:pb-5 sm:pt-16 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-active:translate-y-0 sm:group-active:opacity-100 sm:group-focus-visible:translate-y-0 sm:group-focus-visible:opacity-100">
-                      <h3 className="font-display text-lg font-semibold leading-snug text-white  md:text-lg">
-                        {albumTitle}
-                      </h3>
-                      <p className="mt-1.5 text-xs text-primary/60 sm:mt-2">
-                        {albumType}
-                      </p>
-                      <span className="mt-3 inline-flex items-center justify-center gap-1.5 border-b border-accent pb-0.5 text-xs text-accent transition-all duration-500 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-active:translate-y-0 sm:group-active:opacity-100 sm:group-focus-visible:translate-y-0 sm:group-focus-visible:opacity-100">
-                        <CameraIcon className="h-3.5 w-3.5" />
-                        {photoLabel} {ta("photos")}
-                      </span>
-                    </div>
                   </Link>
                 </FadeUp>
               );
@@ -235,5 +269,55 @@ export default function CategoryDetail({
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * An album card: the photo, and its details opening beneath it.
+ *
+ * The panel opens in the card's own space, growing the card smoothly and
+ * pushing whatever is below — the next row, or the footer — down with it. It
+ * used to drop down over the content below instead, and covered it.
+ *
+ * With a mouse it opens while the card is hovered or focused. A touch screen
+ * has no hover, so there it opens once the card has scrolled mostly into view.
+ * Keyed on the pointer, not the screen width, so a tablet gets the touch
+ * behaviour too.
+ */
+function AlbumCardBody({
+  media,
+  details
+}: {
+  media: ReactNode;
+  details: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+
+  return (
+    <div
+      ref={ref}
+      className="overflow-hidden rounded-md border border-white/10 bg-black/60 shadow-2xl shadow-black/25 transition-colors duration-500 group-hover:border-accent/45 group-active:border-accent/45 group-focus-visible:border-accent/45"
+    >
+      {/* Wide, to match the landscape covers these albums are shot for; a
+          squarer frame cropped the sides off them. */}
+      <div className="relative aspect-16/10 w-full overflow-hidden">
+        {media}
+      </div>
+
+      {/* Animating grid rows from 0fr to 1fr grows the panel to its natural
+          height, which a height transition cannot do without a fixed value. */}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-out ${
+          inView ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        } pointer-fine:grid-rows-[0fr] pointer-fine:opacity-0 pointer-fine:group-hover:grid-rows-[1fr] pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:grid-rows-[1fr] pointer-fine:group-focus-visible:opacity-100`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="border-t border-white/10 px-4 py-4 transition-colors duration-500 group-hover:border-accent/45 group-focus-visible:border-accent/45 sm:px-5">
+            {details}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

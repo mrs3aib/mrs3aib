@@ -18,7 +18,14 @@ export async function generateMetadata({
   // what a search result and a shared link should show.
   return {
     title: text.title || t("title"),
-    description: text.subtitle || t("subtitle")
+    description: text.subtitle || t("subtitle"),
+    alternates: {
+      canonical: `/${locale}/extra-services`,
+      languages: {
+        ar: "/ar/extra-services",
+        en: "/en/extra-services"
+      }
+    }
   };
 }
 

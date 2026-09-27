@@ -23,6 +23,7 @@ function toMediaDto(media: Media): MediaDto {
     source: media.source,
     externalUrl: media.externalUrl,
     externalId: media.externalId,
+    downloadEnabled: media.downloadEnabled,
     createdAt: media.createdAt.toISOString()
   };
 }
@@ -97,44 +98,56 @@ export const galleryService = {
       ? allReady.slice(offset, offset + limit)
       : allReady.slice(offset);
 
-    const [coverUrl, withUrls] = await Promise.all([
+    /** One item with its thumbnail, source and preview ready to render. */
+    const signItem = async (item: Media) => ({
+      ...toMediaDto(item),
+      /**
+       * A linked video has no file of ours, so its still comes straight from
+       * YouTube's CDN and there is no signed source to hand out — the site
+       * embeds it by `externalId` instead.
+       */
+      thumbnailUrl:
+        item.source === "youtube"
+          ? item.externalId
+            ? youTubeThumbnailUrl(item.externalId)
+            : null
+          : item.thumbnailKey
+            ? await storageProvider.getDownloadUrl(item.thumbnailKey)
+            : null,
+      /**
+       * Playable/viewable source for the lightbox. Videos need it to play at
+       * all — a thumbnail is a still frame — and images use it for the
+       * full-size view rather than blowing up the grid thumbnail.
+       */
+      sourceUrl: item.storageKey
+        ? await storageProvider.getDownloadUrl(item.storageKey)
+        : null,
+      /**
+       * Blur-up preview, inlined rather than signed. Null for videos and
+       * for anything processed before previews existed; the grid falls back
+       * to its plain skeleton for those.
+       */
+      previewDataUrl: item.previewDataUrl,
+      downloadEnabled: item.downloadEnabled
+    });
+
+    /**
+     * The item starred in the admin, sent whatever page this is. The album page
+     * features it at the top, and on a paged response it is often not among the
+     * items returned — a star on the 300th photo is not in the first 24.
+     */
+    const pinned = session.coverImage
+      ? allReady.find((m) => m.id === session.coverImage)
+      : undefined;
+
+    const [coverUrl, withUrls, coverMedia] = await Promise.all([
       // A custom session cover has priority over every media item. Sign it with
       // the gallery response so the page and its share metadata use one source.
       session.coverStorageKey
         ? storageProvider.getDownloadUrl(session.coverStorageKey)
         : Promise.resolve(session.coverImageExternalUrl),
-      Promise.all(
-        readyMedia.map(async (item) => ({
-          ...toMediaDto(item),
-          /**
-           * A linked video has no file of ours, so its still comes straight from
-           * YouTube's CDN and there is no signed source to hand out — the site
-           * embeds it by `externalId` instead.
-           */
-          thumbnailUrl:
-            item.source === "youtube"
-              ? item.externalId
-                ? youTubeThumbnailUrl(item.externalId)
-                : null
-              : item.thumbnailKey
-                ? await storageProvider.getDownloadUrl(item.thumbnailKey)
-                : null,
-          /**
-           * Playable/viewable source for the lightbox. Videos need it to play at
-           * all — a thumbnail is a still frame — and images use it for the
-           * full-size view rather than blowing up the grid thumbnail.
-           */
-          sourceUrl: item.storageKey
-            ? await storageProvider.getDownloadUrl(item.storageKey)
-            : null,
-          /**
-           * Blur-up preview, inlined rather than signed. Null for videos and
-           * for anything processed before previews existed; the grid falls back
-           * to its plain skeleton for those.
-           */
-          previewDataUrl: item.previewDataUrl
-        }))
-      )
+      Promise.all(readyMedia.map(signItem)),
+      pinned ? signItem(pinned) : Promise.resolve(null)
     ]);
 
     return {
@@ -176,7 +189,9 @@ export const galleryService = {
         watermarkPreviewImages: settings?.watermarkPreviewImages ?? false,
         watermarkUrl: settings?.watermarkUrl ?? null
       },
-      media: withUrls
+      media: withUrls,
+      /** The starred item, signed like the rest; null when none is starred. */
+      coverMedia
     };
   },
 

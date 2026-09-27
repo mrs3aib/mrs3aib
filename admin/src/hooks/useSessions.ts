@@ -45,9 +45,16 @@ export function useUpdateSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, payload }: UpdateSessionVariables) => updateSession(id, payload),
-    onSuccess: (session) => {
+    onSuccess: (session, { payload }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
       queryClient.setQueryData(queryKeys.sessions.detail(session.id), session);
+      // Switching to public clears the gallery password on the server, so the
+      // settings panel must not keep showing the old one.
+      if (payload.visibility === "public") {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.gallerySettings.detail(session.id)
+        });
+      }
     }
   });
 }

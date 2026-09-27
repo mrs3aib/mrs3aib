@@ -99,6 +99,7 @@ type ArchivableMedia = {
   size: number;
   storageKey: string;
   originalName: string;
+  downloadEnabled: boolean;
 };
 
 /**
@@ -109,10 +110,17 @@ type ArchivableMedia = {
  * the single place that decides it, so every archive path agrees.
  */
 function archivableOnly(
-  media: { id: string; size: number | null; storageKey: string | null; originalName: string }[]
+  media: {
+    id: string;
+    size: number | null;
+    storageKey: string | null;
+    originalName: string;
+    downloadEnabled: boolean;
+  }[]
 ): ArchivableMedia[] {
   return media.filter(
-    (m): m is ArchivableMedia => m.storageKey !== null && m.size !== null
+    (m): m is ArchivableMedia =>
+      m.storageKey !== null && m.size !== null && m.downloadEnabled
   );
 }
 
@@ -185,6 +193,9 @@ export const zipArchiveService = {
     const ownMedia = media.filter((m) => m.sessionId === sessionId);
     if (ownMedia.length !== new Set(mediaIds).size) {
       throw new ForbiddenError("One or more files do not belong to this gallery");
+    }
+    if (ownMedia.some((m) => !m.downloadEnabled)) {
+      throw new ForbiddenError("One or more files cannot be downloaded");
     }
 
     const readyMedia = archivableOnly(

@@ -48,17 +48,41 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "meta" });
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   return {
     /**
      * Required for `og:image` to be emitted as an absolute URL. Without it
      * Next renders a relative path, which every link-preview crawler ignores —
      * so a shared link showed no image regardless of what the page declared.
      */
-    ...(process.env.NEXT_PUBLIC_SITE_URL
-      ? { metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL) }
+    ...(siteUrl
+      ? { metadataBase: new URL(siteUrl) }
       : {}),
     title: t("title"),
     description: t("description"),
+    applicationName: "Al-S3aib",
+    alternates: {
+      canonical: `/${locale}`,
+      languages: {
+        ar: "/ar",
+        en: "/en",
+        "x-default": "/ar"
+      }
+    },
+    robots: { index: true, follow: true },
+    openGraph: {
+      type: "website",
+      siteName: "Al-S3aib",
+      title: t("title"),
+      description: t("description"),
+      locale: locale === "ar" ? "ar_SA" : "en_US",
+      alternateLocale: locale === "ar" ? "en_US" : "ar_SA"
+    },
+    twitter: {
+      card: "summary",
+      title: t("title"),
+      description: t("description")
+    },
     icons: {
       icon: "/logo2.svg"
     }
@@ -79,6 +103,17 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
   const messages = await getMessages();
   const dir = locale === "ar" ? "rtl" : "ltr";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  // Structured data is not visible site content. It gives search engines a
+  // single, machine-readable identity for brand searches such as "als3aib".
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "ProfessionalService",
+    name: "Yahya Al-Saib",
+    alternateName: ["Al-S3aib", "Als3aib", "Al Saib", "الصعيب"],
+    ...(siteUrl ? { url: siteUrl, logo: `${siteUrl}/logo2.svg` } : {}),
+    description: "Photography and visual production studio."
+  };
 
   /**
    * Categories the CMS still shows, resolved once for everything chrome-level.
@@ -98,6 +133,10 @@ export default async function LocaleLayout({
       suppressHydrationWarning
     >
       <body className="bg-base text-primary antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         <NextIntlClientProvider messages={messages}>
           <RouteLoader />
           {/* Records one view per navigation. Renders nothing, and is inert

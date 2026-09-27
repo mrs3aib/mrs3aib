@@ -375,6 +375,9 @@ export const publicGalleryService = {
     if (!media || media.sessionId !== sessionId) {
       throw new NotFoundError("Media not found");
     }
+    if (!media.downloadEnabled) {
+      throw new ForbiddenError("Downloads are disabled for this media");
+    }
     // Linked videos are watched on YouTube; there is no file to hand over.
     if (!media.storageKey) {
       throw new NotFoundError("Media not found");

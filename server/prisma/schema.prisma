@@ -217,6 +217,9 @@ model Media {
   height           Int?
   duration         Float?
   processingStatus MediaProcessingStatus @default(processing)
+  /// Controls downloads for this item only. It remains visible and playable in
+  /// the gallery, but cannot be downloaded alone or included in a ZIP.
+  downloadEnabled  Boolean               @default(true)
   /// Position of this file within the batch it was picked in, assigned by the
   /// browser before anything is uploaded.
   ///
