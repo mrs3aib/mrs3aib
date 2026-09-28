@@ -39,11 +39,10 @@ export const revalidate = 300;
  */
 const GALLERY_TILE_PHOTO_LIMIT = 30;
 
-export default async function HomePage({
-  params
-}: {
+export default async function HomePage({params}: {
   params: Promise<{ locale: string }>;
 }) {
+  
   const { locale } = await params;
   setRequestLocale(locale);
   const tCategories = await getTranslations({ locale, namespace: "categories" });
