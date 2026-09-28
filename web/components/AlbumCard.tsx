@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import { useRef } from "react";
 import { useInView } from "framer-motion";
 import { useLocale, useTranslations } from "next-intl";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Link } from "@/i18n/navigation";
 import type { ResolvedAlbum } from "@/lib/api";
 import { CameraIcon, LockIcon } from "./icons";
@@ -32,7 +33,8 @@ function formatDate(value: string, locale: string): string | null {
  * The details panel opens in the card's own space, growing the card smoothly
  * and pushing whatever is below — the next row, or the footer — down with it.
  * With a mouse it opens while the card is hovered or focused. A touch screen
- * has no hover, so there it opens once the card has scrolled mostly into view.
+ * has no hover, so there the whole hover look — panel included — plays while
+ * the card sits at the centre of the screen, and eases away as it scrolls on.
  * Keyed on the pointer, not the screen width, so a tablet gets the touch
  * behaviour too.
  */
@@ -76,12 +78,17 @@ export function MediaCard({
   onIntent?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.6 });
+  // Touch has no hover, so the card crossing the screen's centre line stands
+  // in for it, opening the details panel as hover would. The `-50%` margins shrink the viewport to a zero-height strip at
+  // its middle, so only the one card under that line lights up at a time.
+  const isTouch = useMediaQuery("(hover: none)");
+  const centred = useInView(ref, { margin: "-50% 0px -50% 0px" });
+  const active = isTouch && centred;
 
   const body = (
     <div
       ref={ref}
-      className="overflow-hidden rounded-md border border-white/10 bg-black/60 shadow-2xl shadow-black/25 transition-colors duration-500 group-hover:border-accent/45 group-active:border-accent/45 group-focus-visible:border-accent/45"
+      className="overflow-hidden rounded-md border border-white/10 bg-black/60 shadow-2xl shadow-black/25 transition-colors duration-500 group-hover:border-accent/45 group-active:border-accent/45 group-data-active:border-accent/45 group-focus-visible:border-accent/45"
     >
       {/* Wide, to match the landscape covers these albums are shot for; a
           squarer frame cropped the sides off them. */}
@@ -91,13 +98,13 @@ export function MediaCard({
           alt={title}
           fill
           sizes={sizes}
-          className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-focus-visible:scale-110"
+          className="object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-110 group-active:scale-110 group-data-active:scale-110 group-focus-visible:scale-110"
           unoptimized={unoptimized}
           {...(previewDataUrl ? { previewDataUrl } : {})}
           onFailed={onCoverFailed}
         />
-        <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/25 to-black/95 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-focus-visible:opacity-80" />
-        <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-focus-visible:bg-accent/10" />
+        <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/25 to-black/95 transition-opacity duration-700 group-hover:opacity-80 group-active:opacity-80 group-data-active:opacity-80 group-focus-visible:opacity-80" />
+        <div className="absolute inset-0 bg-accent/0 transition-colors duration-700 group-hover:bg-accent/10 group-active:bg-accent/10 group-data-active:bg-accent/10 group-focus-visible:bg-accent/10" />
 
         {locked ? (
           <span
@@ -111,15 +118,13 @@ export function MediaCard({
       </div>
 
       {/* Animating grid rows from 0fr to 1fr grows the panel to its natural
-          height, which a height transition cannot do without a fixed value. */}
-      <div
-        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-out ${
-          inView ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-        } pointer-fine:grid-rows-[0fr] pointer-fine:opacity-0 pointer-fine:group-hover:grid-rows-[1fr] pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:grid-rows-[1fr] pointer-fine:group-focus-visible:opacity-100`}
-      >
+          height, which a height transition cannot do without a fixed value.
+          Hover is limited to fine pointers: a tap leaves `:hover` stuck on
+          touch screens, which would pin the panel open. */}
+      <div className="grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-700 ease-luxe motion-reduce:transition-none pointer-fine:group-hover:grid-rows-[1fr] pointer-fine:group-hover:opacity-100 group-focus-visible:grid-rows-[1fr] group-focus-visible:opacity-100 group-data-active:grid-rows-[1fr] group-data-active:opacity-100">
         <div className="min-h-0 overflow-hidden">
-          <div className="border-t border-white/10 px-4 py-4 transition-colors duration-500 group-hover:border-accent/45 group-focus-visible:border-accent/45 sm:px-5">
-            <h3 className="font-display text-lg font-semibold leading-snug text-white transition-colors duration-500 group-hover:text-accent group-active:text-accent group-focus-visible:text-accent">
+          <div className="translate-y-2 transition-[translate,border-color] duration-700 ease-luxe motion-reduce:transition-none pointer-fine:group-hover:translate-y-0 group-focus-visible:translate-y-0 group-data-active:translate-y-0 border-t border-white/10 px-4 py-4 group-hover:border-accent/45 group-focus-visible:border-accent/45 group-data-active:border-accent/45 sm:px-5">
+            <h3 className="font-display text-lg font-semibold leading-snug text-white transition-colors duration-500 group-hover:text-accent group-active:text-accent group-data-active:text-accent group-focus-visible:text-accent">
               {title}
             </h3>
             {date ? <p className="mt-1 text-xs text-primary/50">{date}</p> : null}
@@ -149,6 +154,7 @@ export function MediaCard({
     onFocus: onIntent,
     // Touch has no hover; the press lands well before the click.
     onTouchStart: onIntent,
+    "data-active": active ? "" : undefined,
     className:
       "group relative block w-full cursor-pointer text-center focus-visible:outline-none"
   };
