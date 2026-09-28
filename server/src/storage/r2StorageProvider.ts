@@ -69,7 +69,14 @@ export class R2StorageProvider implements StorageProvider {
       credentials: {
         accessKeyId: env.R2_ACCESS_KEY,
         secretAccessKey: env.R2_SECRET_KEY
-      }
+      },
+      // SDK v3.729+ defaults to flexible checksums, which stamps
+      // `x-amz-checksum-mode=ENABLED` onto every presigned GET and CRC32
+      // headers onto PUTs. R2 doesn't honour these, and signed media URLs
+      // failed in the browser with ERR_EMPTY_RESPONSE. Cloudflare's guidance
+      // is to only send checksums when an operation strictly requires them.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED"
     });
     this.bucket = env.R2_BUCKET;
   }
