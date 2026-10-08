@@ -43,7 +43,7 @@ export const clientRepository = {
         // `isPublic` and `status` decide whether the client's gallery link
         // actually reaches their photos, which the admin list surfaces.
         session: {
-          select: { title: true, category: true, isPublic: true, status: true }
+          select: { title: true, slug: true, category: true, isPublic: true, status: true }
         }
       }
     });

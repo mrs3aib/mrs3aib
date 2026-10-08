@@ -235,6 +235,12 @@ export const sessionRepository = {
     });
   },
 
+  findPublicBySlug(slug: string) {
+    return prisma.photoSession.findFirst({
+      where: { slug, isPublic: true, status: "active" }
+    });
+  },
+
   findBySlug(slug: string) {
     return prisma.photoSession.findUnique({ where: { slug } });
   },

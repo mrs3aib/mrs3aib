@@ -5,6 +5,7 @@ export type Client = {
   /** Null for a client who registered themselves and has no shoot yet. */
   sessionId: string | null;
   sessionTitle: string | null;
+  sessionSlug: string | null;
   sessionCategory: string | null;
   /**
    * Whether this session is listed in the public galleries. A private session

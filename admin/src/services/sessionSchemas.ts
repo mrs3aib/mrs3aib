@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { SESSION_CATEGORIES } from "@/types/category";
 
+const customSlugSchema = z.string().trim().toLowerCase().max(120, "URL name is too long").regex(
+  /^(?:[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*)?$/u,
+  "Use letters, numbers, and single hyphens between words"
+).optional();
+
 export const sessionFormSchema = z.object({
   title: z.string().min(1, "Title is required").max(120, "Title is too long"),
+  slug: customSlugSchema,
   category: z.enum(SESSION_CATEGORIES, { message: "Category is required" }),
   eventDate: z.string().min(1, "Event date is required"),
   location: z.string().min(1, "Location is required").max(160, "Location is too long"),

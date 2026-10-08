@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { SESSION_CATEGORIES } from "@/types/categories";
 
+const customSlugSchema = z.string().trim().toLowerCase().max(120, "URL name is too long").regex(
+  /^(?:[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*)?$/u,
+  "Use letters, numbers, and single hyphens between words"
+).optional();
+
 const categorySchema = z.enum(SESSION_CATEGORIES);
 
 /**
@@ -12,6 +17,7 @@ const visibilitySchema = z.enum(["public", "private", "protected"]);
 export const createSessionSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(120),
+    slug: customSlugSchema,
     category: categorySchema,
     eventDate: z.string().datetime().or(z.string().date()),
     location: z.string().min(1).max(160),
@@ -29,6 +35,7 @@ export const updateSessionSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
     title: z.string().min(1).max(120).optional(),
+    slug: customSlugSchema,
     category: categorySchema.optional(),
     eventDate: z.string().datetime().or(z.string().date()).optional(),
     location: z.string().min(1).max(160).optional(),

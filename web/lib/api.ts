@@ -129,6 +129,7 @@ export type PublicAlbum = {
 export type GalleryPayload = {
   session: {
     id: string;
+    slug: string;
     title: string;
     /** The session's real category, for callers that must verify one. */
     category?: CategoryId;
@@ -203,12 +204,13 @@ export type ResolvedPhoto = {
 };
 
 export type ResolvedAlbum = Album & {
+  slug?: string;
   /** True when the contents came from the backend rather than `lib/data.ts`. */
   isLive: boolean;
   /** Backend session id, present only for live albums. Needed for ZIP download. */
   sessionId?: string;
   /**
-   * Category this album belongs to. Together with `id` it forms the album's
+   * Category this album belongs to. Together with `slug` it forms the album's
    * canonical route, which is what share links and the QR code point at — the
    * modal has no URL of its own to borrow.
    */
@@ -373,6 +375,7 @@ function toLiveAlbum(base: Album, summary: PublicAlbum): ResolvedAlbum {
   return {
     ...base,
     id: summary.id,
+    slug: summary.slug,
     isLive: true,
     sessionId: summary.id,
     category: summary.category,
@@ -463,6 +466,7 @@ export async function resolveCategoryAlbums(
 /** What the album page needs before it knows whether it may render anything. */
 export type AlbumAccess = {
   sessionId: string;
+  slug: string;
   title: string;
   /**
    * The category the session actually belongs to, so a route carrying a
@@ -482,7 +486,7 @@ export type AlbumAccess = {
 async function fetchAlbumAccessUncached(
   albumId: string
 ): Promise<AlbumAccess | null> {
-  return safeGet<AlbumAccess>(`/public/sessions/${albumId}/access`, {
+  return safeGet<AlbumAccess>(`/public/sessions/${encodeURIComponent(albumId)}/access`, {
     // Never cached: whether an album is gated can change in the CMS at any
     // time, and a stale "no password needed" would render a gated album open.
     policy: "never",
@@ -707,6 +711,7 @@ export function albumFromPayload(
   return {
     ...base,
     id: albumId,
+    slug: payload.session.slug,
     isLive: true,
     sessionId: albumId,
     category,

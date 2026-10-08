@@ -1,5 +1,6 @@
 "use client";
 
+import { albumPath } from "@/lib/albumUrl";
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -159,7 +160,7 @@ export default function CategoryDetail({
               <FadeUp key={album.id} delay={(index % 3) * 0.08}>
                 <AlbumCard
                   album={album}
-                  href={`/category/${id}/${album.id}`}
+                  href={albumPath(id, album.slug ?? album.id)}
                   // A locked album asks for its password here rather than on a
                   // page the visitor would only be turned away from.
                   onClick={

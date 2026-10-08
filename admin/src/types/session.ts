@@ -46,6 +46,7 @@ export type SessionVisibility = "public" | "private" | "protected";
 
 export type CreateSessionPayload = {
   title: string;
+  slug?: string;
   category: SessionCategory;
   eventDate: string;
   location: string;

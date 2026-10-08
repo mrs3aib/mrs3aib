@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "@/i18n/navigation";
+import { albumPath } from "@/lib/albumUrl";
 import { unlockAlbum } from "@/lib/api";
 import type { CategoryId } from "@/lib/data";
 import { startScroll, stopScroll } from "@/lib/scroll";
@@ -86,7 +87,7 @@ export default function AlbumPasswordModal({
         // Private mode or blocked storage: the album page simply asks again,
         // which is the old behaviour rather than a failure.
       }
-      router.push(`/category/${category}/${albumId}`);
+      router.push(albumPath(category, result.album.slug ?? albumId));
       /*
        * Dismissed rather than left standing.
        *

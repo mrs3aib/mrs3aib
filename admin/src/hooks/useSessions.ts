@@ -48,6 +48,11 @@ export function useUpdateSession() {
     onSuccess: (session, { payload }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all() });
       queryClient.setQueryData(queryKeys.sessions.detail(session.id), session);
+      if (payload.slug !== undefined) {
+        // Client share links and CMS picks must use the newly saved URL name.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.publicSessions.all() });
+      }
       // Switching to public clears the gallery password on the server, so the
       // settings panel must not keep showing the old one.
       if (payload.visibility === "public") {

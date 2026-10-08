@@ -1,3 +1,4 @@
+import { albumPath } from "@/lib/albumUrl";
 import { getPageContentForRender } from "@/lib/cmsPreview";
 import { setRequestLocale } from "next-intl/server";
 import Hero from "@/components/Hero";
@@ -123,7 +124,7 @@ export default async function HomePage({params}: {
      * no reachable page, so linking to it would offer a button that 404s.
      */
     ...(album.category && visibleCategoryIds.has(album.category)
-      ? { href: `/category/${album.category}/${album.id}` }
+      ? { href: albumPath(album.category, album.slug ?? album.id) }
       : {})
   }));
 
