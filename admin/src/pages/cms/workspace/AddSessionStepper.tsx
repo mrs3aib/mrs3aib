@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/Button";
 import { FancyDatePicker } from "@/components/FancyDatePicker";
+import { SessionUrlField } from "@/components/SessionUrlField";
 import { TextField } from "@/components/TextField";
 import { TextareaField } from "@/components/TextareaField";
 import { CheckIcon } from "@/components/icons";
@@ -76,6 +77,7 @@ export function AddSessionStepper({
 
   const {
     register,
+    watch,
     handleSubmit,
     formState: { errors }
   } = useForm<SessionFormValues>({
@@ -94,7 +96,7 @@ export function AddSessionStepper({
     } catch (error) {
       setSubmitError(
         isAxiosError(error) && error.response?.status === 409
-          ? t("A session with this title already exists.", "توجد جلسة بهذا العنوان بالفعل.")
+          ? t("This URL name is already taken. Choose another name.", "اسم الرابط مستخدم بالفعل. اختر اسماً آخر.")
           : t(
               "Could not create this session. Please try again.",
               "تعذر إنشاء هذه الجلسة. يرجى المحاولة مرة أخرى."
@@ -139,6 +141,13 @@ export function AddSessionStepper({
               {...register("eventDate")}
             />
           </div>
+          <SessionUrlField
+            register={register}
+            title={watch("title")}
+            category={category}
+            slug={watch("slug")}
+            error={errors.slug?.message}
+          />
           <TextField
             label={t("Location", "الموقع")}
             placeholder={t("Riyadh, Saudi Arabia", "الرياض، السعودية")}

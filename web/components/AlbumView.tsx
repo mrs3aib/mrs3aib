@@ -1,5 +1,6 @@
 "use client";
 
+import { albumPath } from "@/lib/albumUrl";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -95,7 +96,7 @@ type ViewMode = "grid" | "rows";
  * Where the album is being rendered.
  *
  * `modal` is the in-place overlay opened from a category grid; `page` is the
- * standalone route at `/category/<category>/<albumId>`. The two differ only in
+ * standalone route at its name-based public URL. The two differ only in
  * their frame — the panel, controls, and grid below are identical — so the body
  * lives here once and the variant decides the wrapper and the back control.
  */
@@ -159,7 +160,7 @@ function useAlbumUrl(album: ResolvedAlbum) {
   const [albumUrl, setAlbumUrl] = useState("");
 
   /**
-   * The canonical link to this album: `/<locale>/category/<category>/<id>`.
+   * The canonical link to this album uses its stable name-based slug.
    *
    * The standalone page is already at that address. The modal is not — it is an
    * overlay above whichever page opened it, so it previously shared that page's
@@ -177,13 +178,13 @@ function useAlbumUrl(album: ResolvedAlbum) {
     // links therefore remain stable even when the visitor opened this album
     // from English, and they use the production origin once it is configured.
     if (album.category) {
-      url.pathname = `/ar/category/${album.category}/${album.id}`;
+      url.pathname = `/ar${albumPath(album.category, album.slug ?? album.id)}`;
     }
     url.search = "";
     url.hash = "";
 
     setAlbumUrl(url.toString());
-  }, [album.id, album.category]);
+  }, [album.id, album.slug, album.category]);
 
   return albumUrl;
 }

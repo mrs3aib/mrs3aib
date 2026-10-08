@@ -10,7 +10,7 @@ import { mediaRepository } from "@/repositories/mediaRepository";
 import { gallerySettingsRepository } from "@/repositories/gallerySettingsRepository";
 import { slugify } from "@/utils/slugify";
 import { toSkipTake, paginate, type PaginatedResult } from "@/utils/pagination";
-import { NotFoundError } from "@/types/errors";
+import { ConflictError, NotFoundError } from "@/types/errors";
 import { youTubeThumbnailUrl } from "@/utils/youtube";
 import { storageKeys } from "@/storage/storageKeys";
 import { logger } from "@/config/logger";
@@ -128,6 +128,13 @@ async function generateUniqueSlug(title: string): Promise<string> {
   return candidate;
 }
 
+async function assertSlugAvailable(slug: string, sessionId?: string): Promise<void> {
+  const existing = await sessionRepository.findBySlug(slug);
+  if (existing && existing.id !== sessionId) {
+    throw new ConflictError("This URL name is already used by another session");
+  }
+}
+
 export const sessionService = {
   async list(params: {
     page?: number | undefined;
@@ -164,6 +171,7 @@ export const sessionService = {
 
   async create(input: {
     title: string;
+    slug?: string;
     category: SessionCategory;
     eventDate: string;
     location: string;
@@ -172,7 +180,8 @@ export const sessionService = {
     isPublic?: boolean;
     visibility?: SessionVisibility;
   }): Promise<SessionDto> {
-    const slug = await generateUniqueSlug(input.title);
+    const slug = input.slug || await generateUniqueSlug(input.title);
+    if (input.slug) await assertSlugAvailable(slug);
     const session = await sessionRepository.create({
       title: input.title,
       slug,
@@ -195,6 +204,7 @@ export const sessionService = {
     id: string,
     input: {
       title?: string;
+      slug?: string;
       category?: SessionCategory;
       eventDate?: string;
       location?: string;
@@ -205,7 +215,9 @@ export const sessionService = {
       coverImage?: string | null;
     }
   ): Promise<SessionDto> {
+    if (input.slug) await assertSlugAvailable(input.slug, id);
     await sessionRepository.update(id, {
+      ...(input.slug ? { slug: input.slug } : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.category !== undefined ? { category: input.category } : {}),
       ...(input.eventDate !== undefined ? { eventDate: new Date(input.eventDate) } : {}),

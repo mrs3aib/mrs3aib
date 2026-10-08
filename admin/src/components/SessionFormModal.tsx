@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Modal } from "./Modal";
+import { SessionUrlField } from "./SessionUrlField";
 import { TextField } from "./TextField";
 import { TextareaField } from "./TextareaField";
 import { SelectField } from "./SelectField";
@@ -55,6 +56,7 @@ export function SessionFormModal({
     if (!open) return;
     reset({
       title: session?.title ?? "",
+      slug: session?.slug ?? "",
       // No default category: force a deliberate choice on new sessions rather
       // than silently filing everything under the first option.
       category: session?.category ?? defaultCategory,
@@ -95,6 +97,14 @@ export function SessionFormModal({
           placeholder={t("Wedding of Ahmed & Sara", "زفاف أحمد وسارة")}
           error={errors.title?.message}
           {...register("title")}
+        />
+        <SessionUrlField
+          register={register}
+          title={watch("title")}
+          category={watch("category")}
+          slug={watch("slug")}
+          existingSlug={session?.slug}
+          error={errors.slug?.message}
         />
         <SelectField
           label={t("Category", "التصنيف")}

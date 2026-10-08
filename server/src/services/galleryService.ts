@@ -153,6 +153,7 @@ export const galleryService = {
     return {
       session: {
         id: session.id,
+        slug: session.slug,
         title: session.title,
         /**
          * Carried so a caller can confirm the session is the one it thinks it

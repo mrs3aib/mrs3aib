@@ -81,8 +81,9 @@ type ClientRow = {
  */
 function galleryLinkFor(client: Client): string | null {
   const base = import.meta.env.VITE_PUBLIC_SITE_URL;
-  if (!base || !client.sessionId || !client.sessionCategory) return null;
-  return `${base.replace(/\/$/, "")}/ar/category/${client.sessionCategory}/${client.sessionId}`;
+  if (!base || !client.sessionSlug || !client.sessionCategory) return null;
+  const path = client.sessionCategory === "weddings" ? "/wedding" : `/category/${client.sessionCategory}`;
+  return `${base.replace(/\/$/, "")}/ar${path}/${encodeURIComponent(client.sessionSlug)}`;
 }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {

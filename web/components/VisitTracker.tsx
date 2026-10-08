@@ -7,13 +7,6 @@ import { useIsPreview } from "./CmsPreviewBridge";
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 /**
- * Album pages carry the session id as the last path segment, and the backend
- * attributes the view to that album. Matched here rather than server-side so
- * the beacon stays a single endpoint that takes a path.
- */
-const ALBUM_PATH = /^\/[^/]+\/category\/[^/]+\/([^/]+)$/;
-
-/**
  * Records one page view per navigation.
  *
  * Mounted once in the layout rather than per page: it reads the pathname from
@@ -44,12 +37,10 @@ export default function VisitTracker() {
     if (reported.current === pathname) return;
     reported.current = pathname;
 
-    const albumId = ALBUM_PATH.exec(pathname)?.[1];
     const payload = JSON.stringify({
       path: pathname,
       // Empty on a direct visit, which the backend reads as "direct".
-      referrer: document.referrer || undefined,
-      ...(albumId ? { sessionId: albumId } : {})
+      referrer: document.referrer || undefined
     });
 
     const url = `${API_BASE}/public/track`;

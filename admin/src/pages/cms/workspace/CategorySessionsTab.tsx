@@ -143,8 +143,8 @@ export function CategorySessionsTab({
       setFormError(
         isAxiosError(error) && error.response?.status === 409
           ? t(
-              "A session with this title already exists.",
-              "توجد جلسة بهذا العنوان بالفعل."
+              "This URL name is already taken. Choose another name.",
+              "اسم الرابط مستخدم بالفعل. اختر اسماً آخر."
             )
           : t(
               "Could not save this session. Please try again.",

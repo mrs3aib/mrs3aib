@@ -14,7 +14,7 @@ import { logger } from "@/config/logger";
  * `status` keeps its enum type and `category` cannot drift from the schema.
  */
 type ClientWithSession = Client & {
-  session: Pick<PhotoSession, "title" | "category" | "isPublic" | "status"> | null;
+  session: Pick<PhotoSession, "title" | "slug" | "category" | "isPublic" | "status"> | null;
 };
 
 export type ClientDto = {
@@ -23,6 +23,7 @@ export type ClientDto = {
   phone: string;
   sessionId: string | null;
   sessionTitle: string | null;
+  sessionSlug: string | null;
   sessionCategory: string | null;
   /**
    * Whether this session is listed in the public galleries.
@@ -49,6 +50,7 @@ function toDto(client: ClientWithSession): ClientDto {
     phone: client.phone,
     sessionId: client.sessionId,
     sessionTitle: client.session?.title ?? null,
+    sessionSlug: client.session?.slug ?? null,
     sessionCategory: client.session?.category ?? null,
     sessionPubliclyListed:
       client.session?.isPublic === true && client.session.status === "active",

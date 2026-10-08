@@ -1,5 +1,6 @@
 "use client";
 
+import { albumPath } from "@/lib/albumUrl";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { ResolvedAlbum } from "@/lib/api";
@@ -45,7 +46,7 @@ export default function LatestWeddingsClient({
           <FadeUp key={album.id} delay={(index % 4) * 0.08}>
             <AlbumCard
               album={album}
-              href={`/category/${album.category ?? WEDDINGS_CATEGORY_ID}/${album.id}`}
+              href={albumPath(album.category ?? WEDDINGS_CATEGORY_ID, album.slug ?? album.id)}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
               showDate
             />

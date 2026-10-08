@@ -135,14 +135,25 @@ export const analyticsService = {
     const now = new Date();
     const { path, locale } = parsePath(input.path);
 
-    // A session id arrives from the public album route, which is already
-    // anonymous — but it is still client-supplied, so it is confirmed against
-    // a published session before being stored. Otherwise anyone could inflate
-    // the view count of any album, including unpublished ones.
+    // Resolve name-based album URLs here so the browser can beacon immediately.
+    // Keep accepting session IDs from older clients.
+    const albumMatch = /^\/(?:ar|en)\/(?:wedding|category\/[^/]+)\/([^/]+)\/?$/.exec(input.path);
+    let identifier = input.sessionId;
+    if (!identifier && albumMatch?.[1]) {
+      try {
+        identifier = decodeURIComponent(albumMatch[1]);
+      } catch {
+        // A malformed URL still counts as a page view, without an album.
+      }
+    }
     let sessionId: string | null = null;
-    if (input.sessionId) {
+    if (identifier) {
       const session = await prisma.photoSession.findFirst({
-        where: { id: input.sessionId, isPublic: true },
+        where: {
+          OR: [{ slug: identifier }, { id: identifier }],
+          isPublic: true,
+          status: "active"
+        },
         select: { id: true }
       });
       sessionId = session?.id ?? null;

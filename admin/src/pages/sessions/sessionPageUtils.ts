@@ -114,5 +114,6 @@ export function exportSessionsCsv(sessions: PhotoSession[]) {
 export function publicSessionUrl(session: PhotoSession): string | null {
   const base = import.meta.env.VITE_PUBLIC_SITE_URL;
   if (!base) return null;
-  return `${base.replace(/\/$/, "")}/ar/category/${session.category}/${session.id}`;
+  const path = session.category === "weddings" ? "/wedding" : `/category/${session.category}`;
+  return `${base.replace(/\/$/, "")}/ar${path}/${encodeURIComponent(session.slug)}`;
 }

@@ -318,12 +318,16 @@ export const publicGalleryService = {
     return key ? { key } : null;
   },
 
-  async getPublicGalleryAccess(sessionId: string) {
-    const session = await sessionRepository.findPublicById(sessionId);
+  async getPublicGalleryAccess(identifier: string) {
+    const session =
+      await sessionRepository.findPublicBySlug(identifier) ??
+      await sessionRepository.findPublicById(identifier);
     if (!session) throw new NotFoundError("Gallery not found");
 
+    const sessionId = session.id;
     return {
       sessionId,
+      slug: session.slug,
       title: session.title,
       /**
        * The category this session really belongs to.
